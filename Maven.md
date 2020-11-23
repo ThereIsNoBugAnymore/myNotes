@@ -6,7 +6,7 @@
 
 下载地址：https://maven.apache.org/download.html
 
-![clip_image001](D:\笔记\assets\maven_download.png)
+![clip_image001](.\assets\maven_download.png)
 
 
 
@@ -99,7 +99,7 @@
 
 设置为本地maven
 
-![基本环境配置](D:\笔记\assets\maven_environment.png)
+![基本环境配置](.\assets\maven_environment.png)
 
 ## 2. 参数设置（非必须）
 
@@ -107,7 +107,7 @@
 
 参数：-DarchetypeCatalog=internal
 
-![参数设置](D:\笔记\assets\maven_parameter.png)
+![参数设置](.\assets\maven_parameter.png)
 
 
 
