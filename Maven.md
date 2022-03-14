@@ -118,14 +118,18 @@
 ## 1. 修改tomcat版本
 
 ```xml
-<plugin>
-	<groupId>org.apache.tomcat.maven</groupId>
-	<artifactId>tomcat7-maven-plugin</artifactId>
-	<version>2.2</version>
-	<configuration>
-		<port>8080</port>
-	</configuration>
-</plugin>
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.apache.tomcat.maven</groupId>
+            <artifactId>tomcat7-maven-plugin</artifactId>
+            <version>2.2</version>
+            <configuration>
+                <port>8080</port>
+            </configuration>
+        </plugin>
+    </plugins>
+</build>
 ```
 
 
