@@ -148,3 +148,24 @@
 </plugin>
 ```
 
+## 3. 在 Maven 中配置JDK版本
+
+与在工程中指定版本功能相同，在 Maven 的conf/settings.conf中添加如下节点以配置JDK
+
+```xml
+<profiles>
+    <profile>
+        <id>jdk-1.8</id>
+        <activation>
+            <activeByDefault>true</activeByDefault>
+            <jdk>1.8</jdk>
+        </activation>
+        <properties>
+            <maven.compiler.source>1.8</maven.compiler.source>
+            <maven.compiler.target>1.8</maven.compiler.target>
+            <maven.compiler.compilerVersion>1.8</maven.compiler.compilerVersion>
+        </properties>
+    </profile>
+</profiles>
+```
+

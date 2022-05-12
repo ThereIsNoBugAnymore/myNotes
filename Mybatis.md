@@ -258,7 +258,7 @@
 
         在高频率访问数据库时，使用数据库连接池可以降低服务器系统压力，提高程序运行效率（小型小牧不适用于数据库连接池）
 
-# 二、`Log4j`
+# 二、Log4j
 
 `Log4j`是**Apache**推出的开源免费日处理的**类库**
 
@@ -694,7 +694,7 @@ public interface UserDao {
 SELECT
 	* 
 FROM
-user 
+	user 
 WHERE
 	1 = 1 
 	AND account = account 

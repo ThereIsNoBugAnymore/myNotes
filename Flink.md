@@ -1,10 +1,10 @@
 [TOC]
 
-# Flink
+# 一. Flink
 
 `Apache Flink`是一个框架和分布式处理引擎，用于对无界和有界数据流进行有状态计算。Flink设计在所有常见的集群环境中运行，以内存速度和任何规模执行计算。
 
-## 流数据
+## 1. 流数据
 
 流数据是一组顺序、大量、快速、连续到达的数据序列,一般情况下,数据流可被视为一个随时间延续而无限增长的动态数据集合。应用于网络监控、传感器网络、航空航天、气象测控和金融服务等领域。
 
@@ -24,7 +24,7 @@
 |   性能   |           几分钟至几个小时的延迟           |                  大约几秒或几毫秒的延迟                  |
 |   分析   |                  复杂分析                  |              简单的响应函数、聚合和滚动指标              |
 
-## 流数据分类
+## 2. 流数据分类
 
 数据可以分为**无界数据流（Unbounded Streams)或有界数据流（Bounded Streams)**
 
@@ -39,7 +39,7 @@ Flink以流处理的方式来进行流、批统一，既可以兼容高效率的
 
 流处理最需要关注的是低延迟和`Exactly-once`（精确处理，既不丢数据，也不重复处理数据）保证，批处理更关注高吞吐、高效处理
 
-## Flink中的编程模型
+## 3. Flink中的编程模型
 
 Flink中，编程模型的抽象层级主要分为以下4种，越往下抽象都越低，编程越复杂，灵活度越高
 
@@ -47,7 +47,7 @@ Flink中，编程模型的抽象层级主要分为以下4种，越往下抽象�
 
 在上述4层中，一般用于开发的时第三层，即`DataStream/DataSet API`，用户可以使用`DataSteam API`处理无界流数据，使用`DataSet API`处理有界流数据。同时这两个`API`提供了各种各样的借口来处理数据，例如常见的`map`、`filter`、`flatmap`等等，而且支持`python`、`scala`、`java`等编程语言。
 
-## 流式计算梳理
+## 4. 流式计算梳理
 
 在处理流式数据时，通常有两种不同的思路
 
@@ -59,9 +59,9 @@ Flink中，编程模型的抽象层级主要分为以下4种，越往下抽象�
 
    > 例如在`Spark Streaming`在处理流数据时，是把流式数据划分成一个小的批量数据，称为窗口。
 
-# Flink安装部署
+# 二. Flink安装部署
 
-## Flink的部署方式
+## 1. Flink的部署方式
 
 Flink的部署方式非常多，支持`Local`、`Standalone`、`Yarn`、`Mesos`、`Docker`、`Kubernetes`、`AWS`等
 
@@ -71,13 +71,13 @@ Flink的部署方式非常多，支持`Local`、`Standalone`、`Yarn`、`Mesos`�
 
 `Yarn`：以`Hadoop`提供的`Yarn`作为资源管理服务，可以更高效的使用集群的机器资源
 
-## 实验环境与前置软件
+## 2. 实验环境与前置软件
 
 前置软件：`JDK8`、`Hadoop`、`Zookeeper`（Flink内置了`zookeeper`，但在优化部署时通常采用外置`zookeeper`）
 
-# Flink运行架构
+# 三. Flink运行架构
 
-## JobManager和TaskManager
+## 1. JobManager和TaskManager
 
 Flink中的节点可以分为`JobManager`和`TaskManager`
 
@@ -91,7 +91,7 @@ Flink中的节点可以分为`JobManager`和`TaskManager`
 
 Flink客户端会往`JobManager`提交任务，`JobManager`会往`ResouceManager`申请资源，当资源足够时，再将任务分配给集群中的`TaskManager`去执行
 
-## 并发度与Slots
+## 2. 并发度与Slots
 
 每一个`TaskManager`都是一个独立的`JVM`进程，它可以在独立的线程上执行一个或多个任务`task`。为了控制一个`TaskManager`能接受多少个`task`，`TaskManager`上就会划分出多少个`slot`来进行控制，每个`slot`表示的是`TaskManager`上拥有资源的一个固定大小的子集。`flink-conf.yaml`配置文件中的`taskmanager.numberOfTaskSlots`属性就是配置了`TaskManager`上有多少个`slot`，默认值是1。
 
@@ -141,7 +141,7 @@ Flink客户端会往`JobManager`提交任务，`JobManager`会往`ResouceManager
 
 每一个`TaskManager`都是一个单独的`JVM`进程，而每个`Slot`就会以这个进程中的一个线程来执行，这些`Slot`在同一个任务中时共享的，一个`Slot`就足以贯穿应用的整个处理流程。Flink集群只需关注一个任务的内的最大并行数，提供足够的`Slot`即可
 
-# Flink DataStream API
+# 四. Flink DataStream API
 
 ```java
 //  设置任务并行度
@@ -164,7 +164,7 @@ Flink提供的`API`非常丰富，总体来说可以分为`DataStream API`、`Da
 - `DataSet API`是Flink中主要进行批量计算的模块
 - `Table API & SQL`主要是对Flink数据集提供类似于关系型数据库的数据查询过滤等功能
 
-## Flink程序的基础运行模型
+## 1. Flink程序的基础运行模型
 
 `DataStream`在Flink的应用程序中被认为是一个不可更改的数据集，这个数据集可以是无界的，也可以是有界的，Flink对他们的处理方式是一定的，这也就是所谓的流批统一。一个`DataStream`和`Java`基础中的集合很相似，都可以迭代处理，但`DataStream`中的数据在创建之后就不能再进行增删改的操作
 
@@ -180,7 +180,7 @@ Flink提供的`API`非常丰富，总体来说可以分为`DataStream API`、`Da
 - 通过`Sink`，定义程序处理的结果要输出到哪里
 - 提交并启动任务
 
-## Environment运行环境
+## 2. Environment运行环境
 
 `StreamExecutionEnvironment`是所有Flink中流式计算程序的基础，有三种创建环境的方式
 
@@ -228,11 +228,11 @@ Flink将会根据数据集类型自动选择处理模式，有界流下选择`BA
 
 通常，执行模式不建议在代码中指定，其还可以通过`flink-conf.yaml`文件中通过`execution.runtime-mode`进行整体设置，或在提交任务时指定，这样可以让应用更加灵活。
 
-## Source数据源
+## 3. Source数据源
 
 Source表示Flink应用程序的数据输入，Flink中提供了十分丰富的Source实现，目前主流的数据源都可以对接
 
-### 基于file的数据源
+### 3.1 基于file的数据源
 
 1. `readTextFile(path)`
 
@@ -256,7 +256,7 @@ Source表示Flink应用程序的数据输入，Flink中提供了十分丰富的S
 
    `TextInputFormat`是一个接口，`OUT`泛型代表返回的数据类型。`TextInputFormat`的返回类型是`String`，`PojoCsvInputFormat`就可以指定从csv文件中读取一个`POJO`类型的对象
 
-### 基于Socket的数据源
+### 3.2 基于Socket的数据源
 
 对接一个Socket通道以读取数据
 
@@ -266,7 +266,7 @@ stream.print();
 environment.execute("stream word count");
 ```
 
-### 基于集合的数据源
+### 3.3 基于集合的数据源
 
 1. `fromCollection`从集合获取数据
 
@@ -284,7 +284,7 @@ environment.execute("stream word count");
    DataStreamSource<Integer> stream = environment.fromElements(1, 2, 3, 4,5);
    ```
 
-### 从Kafka读取数据
+### 3.4 从Kafka读取数据
 
 Flink提供了针对Kafka的Source支持，引入Kafka的连接器，需要引入maven依赖
 
@@ -318,7 +318,7 @@ Flink提供了非常多常用组件的Connector，例如Hadoop/HBase/ES/JDBC等�
 
 > 对于组件 RocketMQ，Flink官方并没有提供 RocketMQ 的 Connector，但是 RocketMQ 社区做了一个 Flink 的 Connector ，可参见 Git 仓库：https://github.com/apache/rocketmq-externals
 
-### 自定义Source
+### 3.5 自定义Source
 
 用户程序可以基于 Flink 提供的 `SourceFunction`，配置自定义的 Source 数据源。
 
@@ -358,7 +358,7 @@ public class UDFSource {
 }
 ```
 
-## Sink输出
+## 4. Sink输出
 
 Sink 是 Flink 的输出组件，负责将 DataStream 中的数据输出到文件、Socket、外部系统等
 
@@ -372,11 +372,11 @@ Sink 是 Flink 的输出组件，负责将 DataStream 中的数据输出到文�
 </dependency>
 ```
 
-### 输出到控制台
+### 4.1 输出到控制台
 
 DataStream 可以 通过`print()`和`printToErr()`将结果输出到标准控制台，在 Flink 中可以在 TaskManager 的控制台中查看
 
-### 输出到文件
+### 4.2 输出到文件
 
 对于 DataStream，有两个方法 `writeAsText` 和 `writeAsCsv`，可以将结果直接输出到文本文件中。但是在当前版本下这两个方法已被标记为过时。当前推荐使用 `SteamingFileSink`
 
@@ -428,7 +428,7 @@ public class FileSinkDemo {
 
 通常情况下，流式数据很少会要求输出到文件中，更多的场景是会直接输出到其他下游组件中，如 Kafka、ES等
 
-### 输出到Socket
+### 4.3 输出到Socket
 
 ```java
 import org.apache.flink.api.common.functions.FlatMapFunction;
@@ -476,7 +476,7 @@ public class SocketSinkDemo {
 }
 ```
 
-### 输出到Kafka
+### 4.4 输出到Kafka
 
 Flink 提供了 Kafka 的 Connector 模块，即提供了 FlinkKafkaConsumer 作为 Source 消费信息，也提供了 FlinkKafkaProducer 作为 Sink 生产消息
 
@@ -515,7 +515,7 @@ public class KafkaSinkDemo {
 
 该 Demo 从一个 topic 接收数据，处理完成后，转发到另一个 topic ，这是一个典型的流式计算场景
 
-### 自定义Sink
+### 4.5 自定义Sink
 
 与 Source 类似，可以通过不带生命周期的 SinkFunction 以及带生命周期的 RickSInkFunction 来定义自己的 Sink 实现。
 
@@ -591,11 +591,11 @@ public class CustomSinkDemo {
 </dependency>
 ```
 
-## Transformation数据转换
+## 5. Transformation数据转换
 
 对 DataStream 进行数据变换的操作（也称为算子），具体可见官方文档(https://nightlies.apache.org/flink/flink-docs-release-1.14/docs/dev/datastream/operators/overview/)
 
-### Map
+### 5.1 Map
 
 DataStream -> DataStream
 
@@ -615,7 +615,7 @@ dataStream.map(new MapFunction<Integer, Integer>() {
 });
 ```
 
-### FlatMap
+### 5.2 FlatMap
 
 DataStream -> DataStream
 
@@ -632,7 +632,7 @@ dataStream.flatMap(new FlatMapFunction<String, String>() {
 });
 ```
 
-### Filter
+### 5.3 Filter
 
 DataStream -> DataStream
 
@@ -647,7 +647,7 @@ dataStream.filter(new FilterFunction(Integer) {
 });
 ```
 
-### KeyBy
+### 5.4 KeyBy
 
 DataStream -> KeyedStream
 
@@ -665,7 +665,7 @@ dataStream.keyBy(value -> value.f0;
 
 KeyedStream 不能像 DataStream 一样执行诸如 Map/FlatMap 等算子操作，一般都会在 KeyBy 后执行 Reduce 算子操作将 KeyedStream 重新转换为 DataStream
 
-### Reduce
+### 5.5 Reduce
 
 KeyedStream -> DataStream
 
@@ -684,7 +684,7 @@ dataStream.reduce(new ReduceFunction(Integer)() {
 >
 > 则上述 Reduce 操作的过程为 `[1, 2, 1, 3, 5] -> [3, 1, 3, 5] -> [4, 3, 5] -> [7, 5] -> 12`
 
-### Aggregations
+### 5.6 Aggregations
 
 KeyedStream -> DataStream
 
@@ -705,7 +705,7 @@ keyedStream.maxBy("key");
 
 `min()`与`minBy()`的不同之处在于`min()`返回一个最小值，而`minBy()`返回域中含有最小值的元素
 
-### Connect
+### 5.7 Connect
 
 DataStream, DataStream -> ConnectedStream
 
@@ -718,7 +718,7 @@ DataStream<String> otherStream = ...;
 ConnectedStreams<Integer, String> connectedStream = someStream.connect(otherStream);
 ```
 
-### CoMap/CoFlatMap
+### 5.8 CoMap/CoFlatMap
 
 ConnectedStream -> DataStream
 
@@ -752,7 +752,7 @@ connectedStreams.flatMap(new CoFlatMapFunction<Integer, String, String>() {
 });
 ```
 
-### Union
+### 5.9 Union
 
 DataStream, DataStream -> DataStream
 
@@ -764,7 +764,7 @@ DataStream<Integer> stream2 = environment.fromElements(1, 3, 5, 7);
 DataStream<Integer> union = stream.union(stream2);	// 1,2,3,4,5,6,7,8
 ```
 
-### Function与RichFunction
+### 5.10 Function与RichFunction
 
 Function 是一个顶级的处理函数接口，之前用到的各种Source/Sink/Transform都是这两个接口的子实现类，Function 代表一个普通的函数接口，只对数据进行计算，Function接口本身并没有提供任何方法
 
@@ -835,7 +835,7 @@ public class RichFunctionDemo {
 }
 ```
 
-## Window 窗口计算
+## 6. Window 窗口计算
 
 在 Flink 的流式计算中，数据都是以 DataStream 的形式来表示，而对数据的计算，基本都是**<font color=red>先分流后合流</font>**的过程，而 Windows 开窗函数可以理解为是一种更高级的分流方法：Window 将一个无限的流式数据 DataStream 拆分成有限大小的 “Bucket”桶，通过对桶中数据的计算最终完成整个流式数据的计算。这也是处理流式数据的一种常见的方法，在 Kafka/Stream/Spark Streaming 等这些流式框架中都有
 
@@ -861,7 +861,7 @@ stream.keyBy(...) // 是 Keyed 类型数据集
 - Output Tag: 标记输出标签，然后在通过 `getSideOutput()` 将窗口中的数据根据标签输出
 - Windows Function: 定义窗口上数据处理的逻辑，例如对数据进行 sum 操作
 
-### Windows 生命周期
+### 6.1 Windows 生命周期
 
 一个 window 会指定一个包含数据的范围，从第一个属于它的数据到达之后就被创建出来，等所有的数据都被处理完成后就会被彻底移除。这个移除的时刻是由直嘀咕的窗口结束时间加上后续设定的 allowedLatensess时长决定的。
 
@@ -874,7 +874,7 @@ stream.windowAll(TumblingEventTimeWindows.of(Time.seconds(60)));
 public <W extends Window> AllWindowedStream<T, W> widowsAll(WindowAssigner<? super T, W> assigner)
 ```
 
-### Windows Assigner 
+### 6.2 Windows Assigner 
 
 1. Keyed 和 Non-Keyed 窗口
 
@@ -896,7 +896,7 @@ public <W extends Window> AllWindowedStream<T, W> widowsAll(WindowAssigner<? sup
 
    在 Flink 流式计算中，通过 Windows Assigner 将接入数据分配到不同的窗口，根据 Windows Assigner 数据分配方式的不同将 Windows 分为4大类，分别是：滚动窗口(Tumbling Window)、滑动窗口(Sliding Windows)、会话窗口(Session Windows)和全局窗口(Global Windows)
 
-   - 滚动窗口
+   - **滚动窗口**
 
      滚动窗口需要指定一个固定的窗口大小 window size，根据固定时间或大小进行切分，且窗口和窗口之间的元素不会重叠，如下图所示
 
@@ -928,7 +928,7 @@ public <W extends Window> AllWindowedStream<T, W> widowsAll(WindowAssigner<? sup
 
      默认窗口时间的时区是 UTC-0，因此 UTC-0 以外的其他地区均需通过设定时间偏移量调整时区，<font color=red>**在国内需要指定 `Time.hours(-8)`的偏移量**</font>
 
-   - 滑动窗口
+   - **滑动窗口**
 
      滑动窗口其特点是在滚动窗口基础之上增加了窗口滑动时间(Slide Time)，且允许窗口数据发生重叠
 
@@ -960,7 +960,7 @@ public <W extends Window> AllWindowedStream<T, W> widowsAll(WindowAssigner<? sup
          .<windowed transformation>(<window function>);
      ```
 
-   - 会话窗口
+   - **会话窗口**
 
      会话窗口主要是将某段时间内活跃度较高的数据聚合成一个窗口进行计算，窗口触发的条件是 Session Gap，是指在规定时间内如果没有数据活跃接入，则认为窗口结束，然后触发窗口计算结果。需要注意的是，如果数据一直不间断的进入窗口，也会导致窗口始终不触发的情况
 
@@ -1002,17 +1002,19 @@ public <W extends Window> AllWindowedStream<T, W> widowsAll(WindowAssigner<? sup
          .<windowed transformation>(<window function>);
      ```
 
-     由于 session windows 没有固定的起点和终点，因此对他们的评估不同于翻滚窗口和滑动窗口。在内部，会话窗口算了为每个接受到的记录创建一个新的窗口，如果窗口之间的距离比定义的间隙更近，则将窗口合并在一起。为了能够合并，会话窗口算子需要一个合并触发器和一个合并窗口函数，比如`ReduceFunction()`/`ArrgegateFunction()`/`ProcessWindowFunction()`
+     由于 session windows 没有固定的起点和终点，因此对他们的评估不同于翻滚窗口和滑动窗口。<font color=blue size=5>在内部，会话窗口算了</font>**<font color=red size=6>为每个接受到的记录创建一个新的窗口</font>**，<font color=blue size=5>如果窗口之间的距离比定义的间隙更近，则将窗口合并在一起</font>。为了能够合并，会话窗口算子需要一个合并触发器和一个合并窗口函数，比如`ReduceFunction()`/`ArrgegateFunction()`/`ProcessWindowFunction()`
+
+     `AggregateFunction` 中存在一个 `merger()` 方法，该方法仅会被 SessionWindow 调用
 
    - 全局窗口
 
      全局窗口(Global Windows)将所有相同的 key 的数据分配到单个窗口中计算结果，窗口没有起始和结束时间，窗口需要借助于 Triger 来触发计算，如果不对 Global Windows 指定 Triger，窗口时不会触发计算的。因此<font color=red size=6>**使用 Global Windows 需要**</font>非常谨慎，用户需要非常明确自己在整个窗口中统计出的结果是什么，并<font color=red size=6>**指定对应的触发器，同时还需要指定相应的数据清理机制，否则数据将一直留在内存中**</font>。
-
+   
      ![Global Windows](D:\workspace\myNotes\assets\Global Windows.png)
 
-### Trigger 窗口触发器
+### 6.3 Trigger 窗口触发器
 
-数据接入窗口后，窗口是否触发 WindowFunction 计算，屈居于窗口是否满足触发条件，每种类型的窗口都有对应的窗口触发机制，保障一次接入窗口的数据都能够按照规定的触发逻辑进行统计计算。Flink 在内部定义了窗口触发器来控制窗口的触发机制，分别有 EventTimeTrigger、ProcessTimeTrigger 以及 CountTrigger 等，每种触发器都对应不同的 Window Assigner
+数据接入窗口后，窗口是否触发 WindowFunction 计算，取决于窗口是否满足触发条件，每种类型的窗口都有对应的窗口触发机制，保障一次接入窗口的数据都能够按照规定的触发逻辑进行统计计算。Flink 在内部定义了窗口触发器来控制窗口的触发机制，分别有 EventTimeTrigger、ProcessTimeTrigger 以及 CountTrigger 等，每种触发器都对应不同的 Window Assigner
 
 - EventTimeTrigger: 通过对比 Watermark 和 Windows EndTime 确定是否触发窗口，如果 Watermark 的时间大于 Windows EndTime 则触发计算，否则窗口继续等待
 - ProcessTimeTrigger: 通过对比 ProcessTime 和 Window EndTime 确定是否触发窗口，如果窗口 ProcessTime 大于 Windows EndTime则触发计算，否则窗口继续等待
@@ -1041,7 +1043,7 @@ public <W extends Window> AllWindowedStream<T, W> widowsAll(WindowAssigner<? sup
 
 <font color=red size=6>**Global Window 的默认触发器时 NeverTrigger，如果使用 Global Window 窗口，则必须自定义触发器，否则数据接入 Window 后将永远不会触发计算，窗口中的数据量会越来越大，最终导致系统内存溢出等问题**</font>
 
-### Evictors 数据剔除器
+### 6.4 Evictors 数据剔除器
 
 Evictors 主要是对进入 WindowsFunction 前后的数据进行剔除处理，Flink 内部实现了 CountEvictor、DeltaEvictor、TimeEvictor 三种 Evictors。在 Flink 中，Evictors 通过调用 DataStream API 中 `evictor()`方法使用，且默认的 Evictors 都是在 WindowsFunction 计算之前对数据进行剔除处理
 
@@ -1049,11 +1051,29 @@ Evictors 主要是对进入 WindowsFunction 前后的数据进行剔除处理，
 - DeltaEvictor: 通过定义 DeltaFunction 和指定 threshold，并计算 Windows 中的元素与最新元素之间的 Delta 大小，如果超过 threshold 则将当前数据元素剔除
 - TimeEvictor: 通过指定时间间隔，将当前窗口中最新元素的时间减去 Interval，然后将小于该结果的数据全部删除，其本质是将具有最新时间的数据选择出来，删除过时的数据
 
-### 开窗聚合算子
+### 6.5 开窗聚合算子
 
 对流式数据进行开窗的目的，是为了对窗口中的数据进行统计计算，这些统计方法和基础的 DataStream 统计十分相似
 
-#### Window Apply
+窗口函数定义了要对窗口中收集的数据做的计算操作，根据处理的方式可以分为两类：增量聚合函数和全窗口函数
+
+1. 增量聚合函数(Incremental aggregation functions)
+
+    窗口将数据收集起来，最基本的数据操作就是聚合，每来一个新的数据，就在之前的结果上聚合一次，这就是“增量聚合”
+
+    典型的增量聚合函数有两个：`ReduceFunction`和`AggregateFunction`
+
+    - `ReduceFunction`规约函数
+
+        `ReduceFunction`可以解决大多数规约聚合问题，但是缺陷在于其为规约函数，只是为了精简结果，其输入、输出以及中间运算结果类型均相同，无法满足复杂应用场景的应用
+
+    - `AggregateFunction`聚合函数
+
+        使用更加灵活，需要传入三个参数，为别是输入、累加器以及输出
+
+2. 
+
+#### 6.5.1 Window Apply
 
 WindowedStream/AllWindowedStream -> DataStream
 
@@ -1087,13 +1107,13 @@ allWindowedStream.apply (new AllWindowFunction<Tuple2<String,Integer>, Integer, 
 });
 ```
 
-#### Window Reduce
+#### 6.5.2 Window Reduce
 
 WindowedStream -> DataStream
 
 与 Reduce 算子类似，将数据进行两两计算
 
-Window Apply 与 Window Aggregate 聚合方式的比较
+#### 6.5.3 Window Apply 与 Window Aggregate 聚合方式的比较
 
 ```java
 import com.Sinotruk.flink.basic.beans.Stock;
@@ -1189,7 +1209,7 @@ aggregate 聚合方式则是“来一条，处理一条”，其中间结果通�
 
 aggregate 聚合方式的效率比较高，apply 则能够拿到全部的窗口信息，使用相对更加灵活
 
-## CEP 编程模型
+## 7. CEP 编程模型
 
 Flink CEP 即 Flink Complex Event Processing，是基于 DataStream 流式数据提供的一套复杂事件处理编程模型，可以理解为是基于无界流的一套正则匹配系统，即对于无界流中的各种数据（称为事件），提供一种组合匹配的功能
 
@@ -1222,7 +1242,7 @@ DataStream<Result> resultStream = patternStream.process(
     });
 ```
 
-### 定义匹配器
+### 7.1 定义匹配器
 
 定义匹配器的基本方式都是通过 Pattern 类，以流式编程的方式定义一个完整的匹配器
 
@@ -1280,11 +1300,11 @@ Flink CEP 支持以下形式的连续策略：
 
 > 一个模式只能有一个时间限制，如果限制了多个时间在不同的单个模式上，会使用最小的那个时间限制
 
-# Flink 时间语义
+# 五. Flink 时间语义
 
 对于流式数据处理，时间是非常重要的。顺序是通过时间来表示的，尤其对于开窗计算，时间顺序不同会导致窗口无法正确的收集数。但是，数据在网络传输的过程中，会产生各种中断或者延迟，因此可能会导致后发的消息经过网络传输后反而先到达 Flink 进行计算，或者某些连续的数据由于网络不稳定导致终端数据顺序错乱。因此，一定要定义不同的时间语义来管理消息的顺序。
 
-## Flink 的自然时间语义
+## 1. Flink 的自然时间语义
 
 在 Flink 中定义了三种基本的时间语义：
 
@@ -1296,7 +1316,7 @@ Flink CEP 支持以下形式的连续策略：
 
 在三种语义中，通常情况下，计算关注最多的是 Event Time，但是 Flink 是无法直接知道 Event 的发生时间的，Ingestion Time 没有太多的业务价值，通常不会太过关心，Process Time 是 Flink 能够自行知道的时间，在 Event Time 不确定的情况下，Flink 只能根据 Process Time来进行计算
 
-## 设置 Event Time
+## 2. 设置 Event Time
 
 在大部分业务场景中，业务更加关注事件的发生时间 Event Time。比如对一个系统的日志进行一些时间敏感的流式操作，我们更应该关注 log 日志中分析出来的事件事件 Event Time，而不太会关注 Flink 是什么时候开始计算的，也就是 Process Time
 
@@ -1326,7 +1346,7 @@ stockstream.assignTimestampsAndWatermarks(stockWatermarkStrategy);
 
 `withTimestampAssigner()`方法是给数据指定 Event Time 的一种方法，这个方法是可选的。在没有指定 Event Time 的情况下，会自动使用 Processing Time 来计算。例如：如果使用 Flink 提供的 Kafka Connector，那 Flink 会去识别 Kafka 各个分区的消息投递时间，自动完成 Event Time 的设置
 
-## Flink 如何处理乱序数据
+## 3. Flink 如何处理乱序数据
 
 在进行 Window 开窗操作时，乱序的问题容易出现，比如：现有1-6这样的6个事件发送到 Flink
 
@@ -1346,13 +1366,13 @@ Flink 中有一系列完整的机制来处理数据乱序问题
 2. allowLateness 延迟窗口关闭时间。再窗口关闭后设置一个延迟时间，延迟时间内到达的数据会在后续窗口计算过程中重新进行一次窗口聚合
 3. sideOutputStream 侧输出流。窗口完成聚合计算后，就不再接收数据，迟到的数据只能选择收集在另外一个侧输出流中，用户自己决定要如何处理此类数据，这是一种最后的兜底方案 
 
-## WaterMark 水位线
+## 4. WaterMark 水位线
 
-### 水位线机制
+### 4.1 水位线机制
 
 Watermark 是 Flink 处理乱序数据的第一道闸门，也是最为重要的一个机制
 
-#### Watermark 工作机制
+#### 4.1.1 Watermark 工作机制
 
 Watermark 本质上就是一个时间戳，表示数据的事件时间 Event Time 推进到哪一个时间点，从数据形式上，Watermark 是只增不减的，代理着时间在按正常时间顺序往下推进，Watermark  必须与事件时间相关联，这样 Watermark 才有业务含义，Watermark 会随着数据流一起传输，可以将其看成一个特殊的数据
 
@@ -1368,7 +1388,7 @@ Watermark 本质上就是一个时间戳，表示数据的事件时间 Event Tim
 
    如上图中，当事件3与事件4到达时，$[0,5)$​这个窗口已经关闭，无法正确接收数据，如果不做处理，那么事件3与事件4在流式计算过程中会丢失
 
-#### Watermark 如何处理乱序问题
+#### 4.1.2 Watermark 如何处理乱序问题
 
 Watermark 处理乱序问题的方式比较简单，就是与真实的事件时间 Event Time 之间保存一个延迟
 
@@ -1378,7 +1398,7 @@ Watermark 处理乱序问题的方式比较简单，就是与真实的事件时�
 
 但是 <font color=red>**Watermark 的延迟时间一般不宜设置过长，因为其会影响事件的响应速度**</font>。另外，由于无法精确的预测事件的乱序程度，所以 Watermark 机制并不能完全处理乱序问题，还需要又后续的兜底方案，即侧输出流
 
-#### 如何分配 Watermark
+#### 4.1.3 如何分配 Watermark
 
 ```java
 final WatermarkStrategy<Stock> stockWatermarkStrategy = WatermarkStrategy.<Stock>forBoundedOutOfOrderness(Duration.ZERO);
@@ -1396,13 +1416,13 @@ Watermark 的推高都是通过事件来推动的，如果一个数据流长期�
 final WatermarkStrategy<Stock> stockWatermarkStrategy = WatermarkStrategy.withIdleness(Duration.ofSeconds(10));
 ```
 
-### 定制 Watermark 生成策略
+### 4.2 定制 Watermark 生成策略
 
 Flink 内置的针对有序数据流和无序数据流的两个 Watermark 机制，已经能够应对大部分的自定义计算过程。但是在对接一些特定数据源时，可以将 Watermark 的分配机制整合到 Source 数据源中。例如，如果使用 Flink 提供的 Kafka Connector，就不需要定制 WatermarkStrategy，因为 Flink 提供的消费者端已经实现了一套 WatermarkStrategy
 
 在 WatermarkStrategy类内部，有一个 WatermarkGenerator 接口的属性，负责生成 Watermark，如果需要定制 Watermark 实现类，可以通过实现 WatermarkGenerator 接口的方式来定制
 
-### Watermark 传播机制
+### 4.3 Watermark 传播机制
 
 如果将环境运行并行度设置为1，那么只要有一个超过 Watermark 的数据进来，就会关闭一个计算窗口。但是当并行度设置为大于1的值（比如4）时会出现，提交一个超过 Watermark 的数据，并不会触发上一个计算窗口的关闭动作，而需要等到积累4个或者4个以上的超过 Watermark 的数据时，才会触发上一个计算窗口的关闭动作。这其中就涉及到了 Watermark 在 Slot 之间的传递机制
 
@@ -1414,7 +1434,7 @@ Flink 内置的针对有序数据流和无序数据流的两个 Watermark 机制
 
 对接 Kafka 这样的数据时，问题就不会太过明显，因为 Kafka 本身就实现了多线程的数据读取
 
-## allowLateness 允许等待时间
+## 5. allowLateness 允许等待时间
 
 对于 WindowedStream 和 AllWindowedStream，可以通过 allowLateness 设置一个等待时间，作为 Watermark 后的补充
 
@@ -1426,7 +1446,7 @@ Flink 对于这些迟到的数据，允许进行一些补偿处理，当手动�
 
 等待时间内的数据处理是比较消耗性能的，因此等待时间一般不宜设置过长。另外，在 TumblingWindow 下，每个数据肯定都是有所属窗口的
 
-## sideOutputStream 侧输出流
+## 6. sideOutputStream 侧输出流
 
 对于乱序数据，Flink 已经做了两次宽大处理，一次是 Watermark，对于短期迟到的数据，Watermark 机制可以让窗口等待迟到数据到达后再关闭窗口；另一次是延迟时间 allowLateness，对于超过 Watermark 等待时间的迟到数据，延迟时间机制可以在迟到数据到达窗口后再重新进行一次窗口聚合计算
 
@@ -1434,9 +1454,9 @@ Flink 对于这些迟到的数据，允许进行一些补偿处理，当手动�
 
 侧输出流的作用不只是在处理乱序数据，它是完全交由用户自行完成的一个补偿机制，从一个主要的 DataStream 数据流中，可以产生任意数量的侧输出结果流，并且这些结果流的数据类型也不需要完全与主要的数据里的数据类型一致，不同的侧输出流，他们的类型也不必要完全相同。<font color=red>侧数据流完全由用户自行把控</font>
 
-# Flink Table API与Flink SQL
+# 六. Flink Table API与Flink SQL
 
-## Table API和SQL是什么
+## 1. Table API和SQL是什么
 
 Flink 为流式/批量处理应用程序提供了不同级别的抽象
 
@@ -1454,7 +1474,7 @@ Flink 为流式/批量处理应用程序提供了不同级别的抽象
 
   Table API 和 Flink SQL 是一套给 Java 和 Scala 语言提供的快速查询数据的 API，是集成在一起的一阵套 API，通过 Table API，用户可以像操作数据库中的表一样查询流式数据（这里注意，Table API 主要是针对数据查询操作），而“表”中数据的本质还是对流式数据的抽象，SQL 则是直接在“表”上提供 SQL 语句支持
 
-## 如何使用Table API
+## 2. 如何使用Table API
 
 引入 maven 依赖
 
@@ -1482,7 +1502,7 @@ Flink 为流式/批量处理应用程序提供了不同级别的抽象
 </dependency>
 ```
 
-## 基础编程框架
+## 3. 基础编程框架
 
 Flink 中对于批处理和流处理的Table API 和 SQL 程序都遵循一个相同的模式，如下所示结构
 
@@ -1522,9 +1542,9 @@ TableResult tableResult = table2.executeInsert("SinkTable");
 3. 在动态表上计算一个连续查询，生成一个新的动态表
 4. 生成的动态表再次转换回流数据
 
-## 扩展编程框架
+## 4. 扩展编程框架
 
-### 临时表与永久表
+### 4.1 临时表与永久表
 
 注册动态表时，额可以选择注册为临时表或者是永久表
 
@@ -1552,11 +1572,11 @@ Flink 的永久表需要一个 catalog 来维护表的元数据，一旦永久�
 
 当一个会话中由两个重名的临时表和永久表时，将会只有临时表生效，如果临时表没有删除，那么永久表就iu无法访问
 
-### AppendStream 和 RetractStream
+### 4.2 AppendStream 和 RetractStream
 
 两个方法都是将 Table 转换成 DataStream，但是 groupby 语句不支持 toAppendStream
 
-### 内置函数与自定义函数
+### 4.3 内置函数与自定义函数
 
 Flink 提供了丰富的 SQL 内置函数，这些函数可以在 Table API 中调用，也可以在 SQL 中直接调用 ，调用方式与在关系型数据库中调用方式类似，详情可参见官方文档：https://nightlies.apache.org/flink/flink-docs-release-1.14/zh/docs/dev/table/functions/systemfunctions/
 
@@ -1638,7 +1658,7 @@ Flink 提供了丰富的 SQL 内置函数，这些函数可以在 Table API 中�
      }
      ```
 
-### 基于 Connector 进行数据流转
+### 4.4 基于 Connector 进行数据流转
 
 Flink 中的流数据，大部分都是映射的一个外部的数据源，所以，通常创建表时，也需要通过 connector 映射外部的数据源。基于 Connector 注册表的通用方式如下：
 
@@ -1679,10 +1699,11 @@ tableEnvironment
     .createTemporaryTable("kafkaOutPUtTable")
 ```
 
-### Flink Table API & SQL 时间语义
+### 4.5 Flink Table API & SQL 时间语义
 
 Flink Table API & SQL 的时间语义通常并不会对一个表进行开窗处理，就是将时间语义作为 Table 中的一个字段引入进来，由应用程序决定要怎么使用时间
 将 DataStream 转化成 Table 时，可以用 .rowtime 后缀在定义 Schema 时定义，这种方式需要在 DataStream 上定义好时间戳和 Watermark，使用 .rowtime 修饰的，可以是一个已有的字段，也可以是一个不存在的字段，如果字段不存在，则会在 Schema 的结尾追加一个新的字段，之后就可以像使用一个普通 Timestamp 类型的字段一样使用这个字段，不管在那种情况下，事件时间字段的值都是 DataStream 中定义的事件时间
+
 ```java
 // Option 1:
 // 基于 stream 中的事件产生时间戳和 Watermark
@@ -1699,7 +1720,7 @@ DataStream<Tuple3<Long, String, String>> stream = inputStream.assignTimestampsAn
 Table table = tEnvironment.fromDataStream(stream, $("user_action_time").rowtime(), $("user_name"), $("data"));
 ```
 
-### 查看 SQL 执行计划
+### 4.6 查看 SQL 执行计划
 
 查看 SQL 执行计划的 API
 
@@ -1722,7 +1743,7 @@ public enum ExplainDetail {
 
 Flink 的 Table API & SQL 提供了一组高级的抽象API，主要是简化对流式数据的检索过程。但是在生产环境中，目前不建议机型深度使用。
 
-# Flink 状态机制
+# 七. Flink 状态机制
 
 由一个任务来维护，并且要参与到数据计算过程中的数据称为**<font color=red>状态</font>**，这一类的计算任务称为**<font color=red>有状态的任务</font>**，比如 reduce/sum/min/minby/max/maxby等操作，都是有状态的算子；只依赖于输入数据的计算任务，则称为**<font color=red>无状态的任务</font>**，多个任务叠加在一起，就组成了一个客户端应用
 
@@ -1732,7 +1753,7 @@ Flink 的 Table API & SQL 提供了一组高级的抽象API，主要是简化对
 
 Flink 管理的状态都是跟特定计算任务关联在一起，主要有两种状态：一种是 Operate State 算子状态，一种是 keyed state 键控状态
 
-## Operate State 算子状态
+## 1. Operate State 算子状态
 
 算子状态的作用范围限定为当前任务计算任务内，这种状态是跟一个特定的计算任务绑定的，算子状态的作用范围只限定在算子任务内，由同一并行任务所处理的所有数据都可以访问到相同的状态，并且这个算子状态不能由其他子任务访问
 
@@ -1805,7 +1826,7 @@ Flink 中的算子状态操作需要给算子继承一个 `CheckpointedFunction`
 
 当任务重新启动时，Flink 可能还需要对子任务的状态进行重新分配，因为任务的并行度有可能进行了调整。所以实例中 initializeState 方法加载状态时，也是将各个子状态的 sum 加到一起，才是一个完整的求和计算
 
-## keyed State 键控状态
+## 2. keyed State 键控状态
 
 算子状态针对的是普通算子，在任何 DataStream 和 DataSet 中都可以使用。keyed state 键控状态是针对 keyby 产生的 KeyedStream。KeyedStream 的计算任务都跟当前分配的 key 直接关联，key 是在计算任务运行时分配的。这一类状态，无法在任务启动过程中完成状态的分配，需要在任务执行过程中，根据 key 的不同而进行不同的分配，Flink 针对 keyed Stream，会在内部根据每一个 key 维护一个键控状态，在具体运算过程中，根据 key 的分配情况，将状态分配给不同的计算任务
 
@@ -1863,7 +1884,7 @@ public class WCKeyedState {
 }
 ```
 
-## Checkpointing 检查点
+## 3. Checkpointing 检查点
 
 Flink 中的每个算子都可以是有状态的，这些状态话的方法和算子可以使 Flink 的计算过程更为精确，在开发过程中，应尽量使用带状态的算子。对于这些状态，除了可以通过算子状态和键控状态进行扩展外，Flink 也停工了一种自动的兜底机制-CheckPointing 检查点
 
@@ -1888,7 +1909,7 @@ env.getCheckpointConfig().setMaxConcurrentCheckpoints(1);
 env.getCheckpointConfig().enableExternalizedCheckpoints(ExternalizedCheckpointCleanup.RETAIN_ON_CANCELLATION)
 ```
 
-## Flink的容错重启机制
+## 4. Flink的容错重启机制
 
 当某一个 task 发生故障时，Flink 需要重启出错的 Task 以及其他受到影响的 Task，以使得作业恢复到正常执行的状态，Flink 通过重启策略和故障恢复策略来控制 Task 重启，重启策略决定是否可以重启以及重启的间隔，故障恢复策略决定哪些 Task 需要重启
 
@@ -1905,7 +1926,7 @@ restart-strategy 属性可选的配置有一下几种
 ```java
 ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironmen();
 env.setRestartStrategy(RestarStrategies.fixedDelayRestart(
-	3, // 尝试重启此时
+	3, // 尝试重启次数
 	Time.of(10, TimuUnit.SECONDS) // 延时
 ))
 ```
@@ -1953,7 +1974,7 @@ env.setRestartStrategy(RestartStrategies.failureRateRestart(
 ));
 ```
 
-## State Backend 状态存储方式与位置
+## 5. State Backend 状态存储方式与位置
 
 通过算子状态、键控状态以及检查点，可以对计算过程中的中间状态进行保存，保存下来的状态即可以在计算中使用，也可以在计算程序异常终止后恢复计算状态时使用。
 
@@ -1998,6 +2019,6 @@ env.setStateBackend(...);
   > env.setStateBackend(new RocksDBStateBackend("key"));
   > ```
 
-## 总结
+## 6. 总结
 
 在流式计算场景下，应用程序通常是无法预知数据会何时到来，只能一直运行随时等待数据接入，一旦应用程序突然出错终止，就很容易导致数据丢失。所以在流式计算场景下，需要对程序的健壮性做更多考量。Flink 提供了一系列的状态机制来加强程序的健壮性，但是在重要的生产环境中，对程序健壮性做再多考量都是不过分的，因此通常还要加上一些基于运维的监控机制（例如监控 Flink 的进程，监控 yarn 中的任务状态等），来保证流式计算程序的安全

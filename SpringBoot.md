@@ -2,6 +2,8 @@
 
 # 一. SpringBoot安装及配置
 
+## 1. Hello SpringBoot
+
 使用Maven方式构建SpringBoot项目
 
 pom.xml
@@ -24,7 +26,7 @@ pom.xml
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.2.5.RELEASE</version>
+        <version>{Sprintboot-version}</version>
     </parent>
 
     <dependencies>
@@ -69,7 +71,7 @@ pom.xml
      }
      ```
      
-
+     
      
 4. 创建处理器Controller
   
@@ -104,18 +106,148 @@ pom.xml
   
      运行启动类即启动服务
 
+在 pom.xml 中添加如下插件，即可将项目打成jar包直接执行，而无需达成war包后在tomcat部署
+
+```xml
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-maven-plugin</artifactId>
+        </plugin>
+    </plugins>
+</build>
+```
+
+## 2. 自动配置原理
+
+### 2.1 SpringBoot 特点
+
+- 依赖管理
+
+    > ```xml
+    > <parent>
+    >     <groupId>org.springframework.boot</groupId>
+    >     <artifactId>spring-boot-starter-parent</artifactId>
+    >     <version>{SpringBoot-version}</version>
+    > </parent>
+    > ```
+    >
+    > 它的父项目为
+    >
+    > ```xml
+    > <parent>
+    >     <groupId>org.springframework.boot</groupId>
+    >     <artifactId>spring-boot-dependencies</artifactId>
+    >     <version>{SpringBoot-version}</version>
+    > </parent>
+    > ```
+    >
+    > 其中几乎声明了所有开发中常用的依赖的版本号；开发者无需关注版本号，自动版本仲裁；
+    >
+    > 如需修改或使用特定版本的依赖，可以先查看spirng-boot-dependencies中规定的当前依赖ban的版本使用的key，再在本项目中重写配置。如在spring-boot-dependencies-2.6.4中，默认mysql版本为`<mysql.version>8.0.28</mysql.version>`，则可以在pom中添加节点
+    >
+    > ```xml
+    > <properties>
+    >     <mysql.version>5.1.2</mysql.version>
+    > </properties>
+    > ```
+    >
+    > 将数据库版本指定为5.1.2版本
+
+- starter 场景启动器
+
+    > - 在引入依赖时，存在许多 spring-boot-starter-* 的依赖，*即指某种场景，如sprint-boot-starter-web则是指web开发场景
+    > - 只要引入starter，这个场景中的所有常规依赖都会被自动引入
+    > - SpringBoot支持的场景可点击链接查看https://docs.spring.io/spring-boot/docs/current/reference/html/using.html#using.build-systems.starters
+    > - \*-starter-\*：一般是第三方开发的简化启动器
+
+- 无需关注版本号，自动版本仲裁
+
+    > - 引入依赖时都可以不写版本号
+    > - 引入非仲裁的jar包时要手动添加版本号
+
+### 2.2 自动配置
+
+- 自动配置 Tomcat
+
+- 自动配置 SpringMVC
+
+- 自动配置 Web 常用功能，如字符编码问题
+
+- 默认的包结构
+
+    主程序所在包及其下属所有子包均会被扫描，如需改变扫描路径，可以使用在注解中使用`@SpringBootApplication(scanBasePackages="package")`或者`@ComponmentScan（"package"）`指定扫描路径
+
+- 各种配置拥有默认值
+
+    默认配置最终都是映射到 MultipartProperties，配置文件的值最终会绑定在每个类上，这个类会在容器中创建对象
+
+- 按需加载所有自动配置项
+
+    引入哪些场景，哪些场景的自动配置才会开启，SpringBoot 所有的自动配置功能都在 spring-boot-autoconfigure 包里面
+
 # 二. 属性配置方式
 
-## 1. 传统配置方式
+## 1. 容器功能
 
-Spring Boot配置主要靠Java类和一些注解，比较常用的注解有：
+### 1.1 组件添加
 
-+ `@Configuration`：声明一个类作为配置类，代替XML文件
-+ `@Bean`：声明在方法上，将该方法的返回值作为一个Bean容器，代替`<beans>`标签
-+ `@Value`：属性注入（只能注入基础数据类型）
-+ `@PropertySource`：指定外部属性文件
+- `@Bean`：声明在方法上，将该方法的返回值作为一个Bean容器，代替`<beans>`标签
 
-**demo**
+- `@Component`
+
+- `@ComponentScan`
+
+- `@Import`：在容器中自动创建组件，默认组件的名字就是全类名
+
+- `@Conditional`：条件装配，满足 Conditionnal 指定的条件则进行组件注入，有诸多派生注解可供使用
+
+    ![@Conditional继承树](D:\workspace\myNotes\assets\@Conditional继承树.png)
+
+    |   @Conditional 常用扩展注解   |                       作用                       |
+    | :---------------------------: | :----------------------------------------------: |
+    |      @ConditionalOnBean       |           容器中存在指定Bean时添加组件           |
+    |   @ConditionalOnMissingBean   |         容器中不存在指定Bean 时添加组件          |
+    |    @ConditionalOnProperty     |          系统中指定的属性是否有指定的值          |
+    |    @ConditionalOnResource     |           类路径下受否存在指定资源文件           |
+    | @ConditionalOnSingleCandidata | 容器中只有一个指定的Bean，或者这个Bean是首选Bean |
+    |      @ConditionalOnClass      |               系统中有指定类时添加               |
+    | @ConditionalOnWebApplication  |                  当前是web环境                   |
+
+- `@Configuration`：声明一个类作为配置类，代替XML文件
+
+    > 配置类中使用`@Bean`标注在方法上给容器注册组件，默认是单实例的；配置类也是组件
+    >
+    > 配置类又两种模式：
+    >
+    > - Full模式：`@Configuration(proxyBeanMethod = true)`，默认为该模式
+    >
+    >     Full模式下，外部无论对配置类中的组件注册方法调用多少次，获取的都是之前注册容器的单实例对象
+    >
+    >     该模式下，每一次调用SpringBoot都会去容器中检查bean对象是否存在，因此执行较为缓慢
+    >
+    > - Lite模式：`@Configuration(proxyBeanMethod = false)`
+    >
+    >     该模式下，SpringBoot不会去容器中检查bean对象是否在容器中存在，直接跳过检查创建新对象，因此SpringBoot执行速度会加快
+    >
+    > **如果只是单纯注册组件，其他地方也不会依赖该组件，一般建议设置为Lite模式**
+
+### 1.2 原生配置文件引入
+
+- `@ImportResource`：原生配置文件导入
+
+    `@ImportResource("classpath:beans.xml")`
+
+### 1.3 配置绑定
+
+- @ConfigurationProperties：配置绑定，将配置文件中的数据绑定到JavaBean
+
+    `@EnableConfigurationProperties``@ConfigurationProperties`联合使用，或`Component``@ConfigurationProperties`联合使用
+
+## 2. 传统配置方式
+
+demo
 
 + 需求：使用代码配置数据库连接池，并在处理器中注入使用
 
@@ -233,7 +365,7 @@ Spring Boot配置主要靠Java类和一些注解，比较常用的注解有：
 
 
 
-## 2. Spring Boot属性注入方式
+## 3. Spring Boot属性注入方式
 
 注解`@Value`不能将配置项读取到对象中，使用注解`@ConfiguratioinProperties`可以将Spring Boot配置文件（默认必须为`application.properties`或者`application.yml`）配置项读取到一个对象中。
 
@@ -296,7 +428,7 @@ Spring Boot配置主要靠Java类和一些注解，比较常用的注解有：
      }
      ```
      
-
+     
      
 2. 创建配置文件`application.properties`（与上节jdbc.properties内容相同）
   
@@ -337,7 +469,7 @@ Spring Boot配置主要靠Java类和一些注解，比较常用的注解有：
 + 不严格要求属性文件中的属性名和成员变量名保持一致。支持驼峰，中划线，下划线等等转换，甚至支持转换对象引导。比如user.friend.name：代表的是user对象中的friend属性中的name属性，显然friend也是对象。`@Value`无法完成这样的注入方式
 + meta-data support：元数据支持，帮助IDE生成属性提示
 
-## 3. 更优雅的注入方式
+## 4. 更优雅的注入方式
 
 如果一段属性只有一个`Bean`需要使用，无需将其注入到一个类中，而是直接在需要的地方声明即可，如上例中，可将`JdbcConfig`类修改为如下：
 
@@ -370,7 +502,7 @@ public class JdbcConfig {
 1. 使用@ConfigurationProperties编写配置项类将配置文件中的配置项设置到对象中
 2. 使用@ConfigurationProperties在方法上面使用
 
-## 4. Yaml配置文件
+## 5. Yaml配置文件
 
 + 单一配置文件
 
@@ -415,7 +547,7 @@ test:
 
   允许properties与yml配置文件同时出现在项目中，且两个配置文件均有效。如果在两个配置文件中存在同名的配置项，则会以properties的文件为主。
 
-## 5. 占位符
+## 6. 占位符
 
 + 占位符语法
 
@@ -487,7 +619,7 @@ Spring Boot的核心启动器，包含自动配置、日志和yaml。
 
     导入实现了`ImportSelector`接口的类
 
-    导入实现了`ImportBeanDefinitionRegistrar`接口的列
+    导入实现了`ImportBeanDefinitionRegistrar`接口的类
 
 +  `@ComponentScan`
 
@@ -520,6 +652,128 @@ Spring Boot的核心启动器，包含自动配置、日志和yaml。
 + `@DeleteMappting`
 
     `@DeleteMappting`注解是`@RequestMapping(method=RequestMethod.DELETE)`的缩写
+
+**请求处理，常用参数注解**
+
+- @PathVariable-路径变量
+
+    ```java
+    @GetMapping("/test/{params1}/path/{params2}")
+    public Object test(@PathVariable("params1") Integer params1, @PathVariable("params2") Integer params2) {
+        ......
+    }
+    ```
+
+- @RequestHeader-获取请求头
+
+    ```java
+    @GetMapping("/test")
+    public Object test(@RequestHeader('User-Agent') String userAgent, @RequestHeader Map<String, String> headers)) {
+        ......
+    }
+    ```
+
+    `@RequestHeader('User-Agent')`获取请求头UA信息，`@RequestHeader`不指定键名获取全部请求头的Map
+
+- @RequestParam-获取请求参数
+
+    ```java
+    @GetMapping("/test")
+    public Object test(@RequestParam("param") String param, @RequestParam("list") List list) {
+        ......
+    }
+    ```
+
+    分别获取名为param与list的参数
+
+- @CookieValue-获取cookie值
+
+    ```java
+    @GetMapping("/test")
+    public Object test(@CookieValue("_ga") String _ga, @CookieValue("_ga") Cookie _ga) {
+        ......
+    }
+    ```
+
+    获取cookie中_ga的值，分别为String与Cookie类
+
+- @RequestBody-获取请求体（POST方法提交的表单）
+
+    ```java
+    @PostMapping("/test")
+    public Object test(@RequestBody String content) {
+        ......
+    }
+    ```
+
+    将获取内容以字符串形式获得
+
+- @RequestAttribute-获取request域属性
+
+    可以用来处理页面转发时页面中的属性
+
+    ```java
+    @Controller
+    public class test {
+        @GetMapping("goToPage")
+        public String goToPage(HttpServerlet request) {
+            request.setAttribute("code", 200);
+            request.setAttribute("msg", "自定义信息");
+            return "forward:/page";
+        }
+        
+        @ResponseBody
+        @GetMapping("page")
+        public String page(@RequestAttribute("code") Integer code,
+                          @RequestAttrubte("msg") String msg,
+                          HttpServletRequest request) {
+            String msg1 = request.getAttribute("msg");
+        }
+    }
+    ```
+
+    访问`goToPage`会转发至`page`页，并向request域中添加两个属性值：code与msg。可以通过`@RequestAttribute`注解获取request域中的属性，或者通过`HttpServletRequest`对象来获取
+
+- @MatrixVariable-矩阵变量
+
+    什么是矩阵变量？
+
+    ```http
+    url?a=1&b=2&c=3
+    ```
+
+    如上传递参数的方式称之为queryString，即查询字符串，在SpringBoot中可以通过@RequestParam获取相关参数
+
+    ```http
+    url;a=1;b=2;c=3
+    ```
+
+    此类使用分号分割参数传递的方式称之为矩阵变量
+
+    ```java
+    // test/route;param1=1;param2=a,b,c
+    @GetMapping("test/{path}")
+    public Map test(@MatrixVariable("parma1") Integer param1,
+                    @MatrixVariable("param2") List param2,
+                   @PathVariable("path") String path) {
+        ......
+    }
+    ```
+
+    如上则可获取相关参数：param1，param2以及路径path值
+
+    ```java
+    // test/route1;param=1/route2;param=2
+    @GetMappgin("test/{path1}/{path2}")
+    public Map test(@MatrixVariable(value = "param", pathVar = "route1") Integer param1,
+                   @MatrixVariable(value = "param", pathVar = "route2") Integer param2) {
+        ......
+    }
+    ```
+
+    如上即可指定路径获取多个不同参数
+
+    但SpringBoot默认是关闭MatrixVariable矩阵变量的，需要自己手动设置开启
 
 # 六. SpringBoot整合Servlet
 
@@ -696,9 +950,7 @@ Spring Boot整合Filter过程与整合Servlet类似
         
             @Override
             public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
-                System.out.println("Hello SecondFilter");
                 filterChain.doFilter(servletRequest, servletResponse);
-                System.out.println("Bye SecondFilter");
             }
         
             @Override
@@ -707,7 +959,7 @@ Spring Boot整合Filter过程与整合Servlet类似
             }
         }
         ```
-
+        
         
 
     + 创建`Filter`配置类
@@ -737,7 +989,7 @@ Spring Boot整合Filter过程与整合Servlet类似
         }
         
         ```
-
+    
         
 
 ## 3. Listener整合
