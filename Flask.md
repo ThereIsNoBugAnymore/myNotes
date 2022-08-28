@@ -6,7 +6,6 @@ Flask 可以通过配置相关属性来控制属性开关，详细配置可以�
 
 - 常用配置
 
-
 `JSON_AS_ASCII`，默认配置为 True，但会导致传递中文时出现异常，因此可以设置其为 False
 
 ```python
@@ -204,6 +203,10 @@ SQLAlchemy：一个独立的 ORM 框架，可以独立于 Flask 存在，也可�
 
 Flask-SQLAlchemy：对 SQLALchemy 的一个封装，能够更适合在 Flask 中使用
 
+```shell
+pip install flask-sqlalchemy
+```
+
 - SQLALchemy 的使用
 
 ```python
@@ -245,6 +248,16 @@ def test():
     with engine.connect() as conn:
         rs = conn.execute('sql')
         print(rs.fetchone())
+```
+
+Flask-SQLAlchemy 连接 SQL Server 时有可能会出现<font color=red>**“未发现数据源名称并且未指定默认驱动程序 ”**</font>的异常，不能正确连接数据库，异常信息：
+
+> sqlalchemy.exc.InterfaceError: (pyodbc.InterfaceError) ('IM002', '[IM002] [Microsoft][ODBC 驱动程序管理器] 未发现数据源名称并且未指定默认驱动程序 (0) (SQLDriverConnect)')
+
+导致此状况可能是因为没有指定驱动程序导致，只需要在 URI 后添加驱动参数即可解决
+
+```python
+DB_URI = 'mssql+pyodbc://{}:{}@{}:{}/{}?driver=SQL+Server+Native+Client+11.0'.format(USERNAME, PASSWORD, HOST_NAME, PORT, DATABASE)
 ```
 
 ## 2. ORM 映射与数据的增删改查
@@ -347,7 +360,7 @@ def test():
     user.articles # 由 user 到 article 的反向引用，因为是一对多关系，因此得到的是一个对象列表
 ```
 
-## 4. 一对一关系时间
+## 4. 一对一关系实现
 
 ```python
 class User(db.Model):
@@ -375,19 +388,114 @@ def test():
     db.session.commit()
 ```
 
+## 5. 操作汇总
+
+```python
+# 原生sql语句操作
+sql = 'select * from user'
+result = db.session.execute(sql)
+
+# 查询全部
+User.query.all()
+
+# 主键查询
+User.query.get(1)
+
+# 条件查询
+User.query.filter_by(User.username='name')
+res = User.query.filter(User.username=='john').first()
+
+# 多条件查询
+from sqlalchemy import and_
+User.query.filter_by(and_(User.username =='name',User.password=='passwd'))
+
+# 比较查询
+User.query.filter(User.id.__lt__(5)) # 小于5
+User.query.filter(User.id.__le__(5)) # 小于等于5
+User.query.filter(User.id.__gt__(5)) # 大于5
+User.query.filter(User.id.__ge__(5)) # 大于等于5
+
+# in查询
+User.query.filter(User.username.in_('A','B','C','D'))
+
+# 排序
+User.query.order_by('age') # 按年龄排序，默认升序，在前面加-号为降序'-age'
+
+# 限制查询
+User.query.filter(age=18).offset(2).limit(3)  # 跳过二条开始查询，限制输出3条
+
+# 增加
+use = User(id,username,password)
+db.session.add(use)
+db.session.commit() 
+
+# 删除
+User.query.filter_by(User.username='name').delete()
+
+# 修改
+User.query.filter_by(User.username='name').update({'password':'newdata'})
+```
+
+## 6. 数据类型
+
+| SQLAlchemy类型名 |    Python类型     |                     说明                     |
+| :--------------: | :---------------: | :------------------------------------------: |
+|     Integer      |        int        |              普通整数，一般32位              |
+|   SmallInteger   |        int        |          取值范围小的整数，一般16位          |
+|    BigInteger    |    int 或 long    |               不限制精度的整数               |
+|      Float       |       float       |                    浮点数                    |
+|      String      |        str        |                  变长字符串                  |
+|     Boolean      |       bool        |                    布尔值                    |
+|       Date       |   datetime.date   |                     日期                     |
+|       Time       |   datetime.time   |                     时间                     |
+|     DateTime     | datetime.datetime |                  日期和时间                  |
+|       Text       |        str        | 变长字符串，对较长或不限长度的字符串做了优化 |
+|     Numeric      |  decimal.Decimal  |                   定点小数                   |
+
+## 7. 列选项
+
+|   选项名    |                          说明                           |
+| :---------: | :-----------------------------------------------------: |
+| primary_key |             如果设为True，这列就是表的主键              |
+|   unique    |             如果设为True，这列不允许重复值              |
+|    index    |       如果设为True，为该列创建索引，提升查询效率        |
+|  nullable   | 如果设为True，这列允许null值，如果设为false，不允许为空 |
+|   default   |                    为这列定义默认值                     |
+
+## 8. 存储过程
+
+对于 SQL Server 数据库存储过程，如需查看执行结果（即：存储过程有 SELECT 结果），需要添加`SET NOCOUNT ON`语句，否则无法获取执行结果
+
+```python
+sql = 'SET NOCOUNT ON; exec query_pinxi_list;';
+connection = db.engine.raw_connection() 
+try:
+    cursor = connection.cursor()
+    cursor.execute(sql)
+    results = list(cursor.fetchall())
+    cursor.close()
+finally:
+    connection.close()
+```
+
 # 六. Flask-WTF 表单验证
 
 Flask-WTF 是简化了 WTForms 操作的一个第三方库，WTForms 表单的两个主要功能是验证用户提交数据的合法性以及渲染模板，当然还包括 CORF 保护、文件上传等
+
+```shell
+pip install flask-wtf
+```
 
 ## 1. 字段验证
 
 现有 forms.py 文件，在内部创建 RegistForm 的注册验证表单
 
 ```python
+from flask_wtf import FlaskForm
 import wtforms
 from wtforms.validators import length, email
 
-class LoginForm(wtforms.Form):
+class LoginForm(FlaskForm):
     email = wtforms.StringField(validators=[length(min=5, max=10), email()]) # 邮箱为字符串，最小长度为5，最大长度为10，格式为邮箱
     password = wtforms.StringField(validators=[length(min=6, max=20)]) # 密码为字符串，最小长度为6，最大长度为20
 ```
@@ -542,7 +650,7 @@ def test():
     return user
 ```
 
-# 九. 基本结构
+# 九. 项目基本结构
 
 + main.py - Flask 主程序
 + forms.py - 表单验证
@@ -552,3 +660,206 @@ def test():
 + exception - 异常处理包
 + blueprints - 蓝图包
 + models - ORM包
+
+# 十. Swagger接口文档
+
+Swagger支持多种语言，可以[点击此处](https://swagger.io/tools/open-source/open-source-integrations/)查询其支持语言
+
+Swagger 对 Flask 具有良好的支持，有 Flasgger、flask-swagger等框架，在此处使用的的是 Flasgger，[点击此处](https://github.com/flasgger/flasgger)查看 Flasgger github 仓库，内含多种实例及相关文档
+
+## 1. 安装相关依赖
+
+```shell
+pip install flasgger
+```
+
+## 2. 接口文档地址
+
+如在本地测试，则可以访问http://localhost:5000/apidocs，查看接口文档内容
+
+## 3. 使用配置
+
+### 3.1 注册启用 flasgger
+
+在主程序中，进行如下操作：
+
+```python
+from flask import Flask
+from flasgger import Swagger
+
+app = Flask(__name__)
+Swagger(app)
+```
+
+即可启用 Swagger，蓝图文件中不需要再重复引入，只在主文件进行上述设置即可
+
+### 3.2 使用
+
+```python
+def test():
+    """
+      接口描述
+      ---
+      tags:
+        - 接口 tag
+      parameters:
+        - name: 参数名1
+          in: query/form/path/...
+          type: string/integer/file/...
+          required: true/false
+          description: 参数描述
+        - name: 参数名2
+          ...
+      responses:
+        200: # 状态码
+    """
+```
+
+#### 3.2.1 描述参数
+
+```yaml
+parameters:
+- in: path
+  name: userId
+  schema:
+    type: integer
+  required: true
+  description: 根据id得到用户
+```
+
+因为传递参数是数组类型，所以在yaml中要在每个参数前使用 - 短线符号标注
+
+##### 3.2.1.1 参数种类
+
+根据参数位置的不同将参数进行了分类，而参数的位置则是根据参数的 <font color=red>in</font> 字段来控制，比如：`in: query` 和 `in: path`，常见的参数位置（种类）有如下几种：
+
+- path 参数
+
+    路径参数，参数通过url传递，例如 `/users/{id}`
+
+- query 参数
+
+    （字符）查询参数，参数通过URL字段传递，常见于get方式提交，例如`/users?role=admin`
+
+- formData 参数
+
+    表单查询参数，一般是通过 post 方式提交的表单
+
+- header 参数
+
+    头部信息传递参数，参数在请求头中，例如`X-MyHeader: Value`
+
+- cookie 参数
+
+    cookie 传递参数，参数附加在 cookie 中，例如`Cookie: debug=0; csrftoken=BUSe35dohU3O1MZvDCU`
+
+#### 3.2.2 数据类型
+
+基本数据类型有：
+
+- string（包含了日期和文件类型）
+- number
+- integer
+- boolean
+- array
+- object
+
+同时支持混合数据类型，但是直接使用 array 来表达混合类型是错误的，正确的应该是使用 `oneOf` 或者 `anyOf` 来表达混合类型，比如：
+
+```yaml
+oneOf:
+  - type: string
+  - type: integer
+```
+
+对于文件，可以使用 `string` 来表达
+
+```yaml
+type: string
+format: binary # 二进制文件
+
+type: string
+format: byte # base64编码的文件
+```
+
+#### 3.2.3 引用定义 `$ref`
+
+通常一个资源会被多个接口使用，因此可以创建一个代码片段，以便在需要时多次使用，使用 `$ref` 来引用定义，示例：
+
+在一 yaml 文件中有如下定义：
+
+```yaml
+componts:
+  schemas:
+    User:
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+```
+
+在返回体中需要引用上述定义，则可以通过下述方法：
+
+```yaml
+responses:
+  200:
+    description: 回复体
+    schema:
+      $ref: '#/componts/schemas/User'
+```
+
+## 4. 完整示例
+
+```yaml
+tags:
+  - '车辆筛选API'
+summary: '提交车辆配置'
+
+parameters:
+  - name: date
+    in: formData
+    type: string
+    required: True
+    description: '查询月份'
+    schema:
+      example: '202205'
+  - name: type
+    in: formData
+    type: integer
+    required: False
+    descrption: '类型'
+    scheml:
+      example: 1
+      
+definitions:
+  item:
+    type: string
+    description: '数据体'
+    
+  resp_body:
+    type: object
+    description: '返回信息'
+    properties:
+      status_code:
+        type: integer
+        descritpion: '状态码'
+      message:
+        type: string
+        description: '提示信息'
+      data:
+        type: query
+        items:
+          $ref: '#/definitions/item'
+    example:
+      status_code: 200
+      message: '操作成功'
+      data: ['string1', 'string2']
+
+responses:
+  200:
+    description: 'OK'
+    schema:
+      $ref: '#/definitions/resp_body'
+```
+
