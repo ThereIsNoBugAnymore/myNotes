@@ -324,7 +324,7 @@ public class Client {
 
 可在打印处设置断点，debug模式下运行以保证程序不中断，以此建立一个简单的客户端程序，并按照以下方法，可以向服务端发送数据
 
-![调试程序中客户端发送数据](D:\笔记\myNotes\Netty.assets\调试程序中客户端发送数据1.png)![调试程序中客户端发送数据](D:\笔记\myNotes\Netty.assets\调试程序中客户端发送数据2.png)
+![调试程序中客户端发送数据](Netty.assets\调试程序中客户端发送数据1.png)![调试程序中客户端发送数据](Netty.assets\调试程序中客户端发送数据2.png)
 
 ### 4.1 阻塞模式
 
@@ -715,4 +715,81 @@ public class Client {
 
 ### 2.2 流程分析
 
-![客户端-服务端流程分析](D:\笔记\myNotes\Netty.assets\客户端-服务端流程分析.png)
+![客户端-服务端流程分析](Netty.assets\客户端-服务端流程分析.png)
+
+- 把 channel 理解为数据的通道
+- 把 msg 理解为流动的数据，最开始输入的是 ByteBuf，但经过 pipeline 的加工，会变成其他类型对象，最后输出又变成 ByteBuf
+- 把 handler 理解为数据的处理工序
+  - 工序有多道，合在一起就是 pipeline，pipeline 负责发布事件（读、读取完成、写等事件）传播给每个 handler，handler 对自己感兴趣的事件将进行处理（重写了相应事件处理方法）
+  - handler 分 Inbound（入站，写入） 和 Outbound（出站，写出） 两类
+- 把 enentLoop 理解为处理数据的工人
+  - 工人可以管理多个 channel 的 IO 操作，并且一旦工人负责了某个 channel，就要负责到底（绑定）
+  - 工人既可以执行 IO 操作，也可以进行任务处理，每位工人有任务队列，队列里可以堆放多个 channel 的待处理任务，任务分为普通任务、定时任务
+  - 工人按照 pipeline 顺序，依次按照 handler 的规划（代码）处理数据，可以为每道工序指定不同的工人
+
+## 3. 组件
+
+### 3.1 EventLoop
+
+事件循环对象
+
+EventLoop 本质是一个单线程执行器（同时维护了一个 Selector），里面有 run 方法处理 Channel 上源源不断的 IO 事件
+
+它的继承关系比较复杂
+
+- 一条线是继承自 `j.u.c.ScheduledExecutorService` 因此包含了线程池中所有的方法
+- 另一条线是继承自 Netty 自己的 `OrderedEventExecutor`
+  - 提供了 `boolean inEventLoop(Thread thread)` 方法判断一个线程是否属于此 EventLoop
+  - 提供了 parent 方法来看自己属于哪个 EventLoop
+
+事件循环组
+
+EventLoopGroup 是一组 EventLoop，Channel 一般会调用 EventLoopGroup 的 register 方法来绑定其中一个 EventLoop，后续这个 Channel 上的 IO 事件都由此 EventLoop 来处理（保证了 IO 事件处理时的线程安全）
+
+- 继承自 Netty 的 EventExecutorGroup
+  - 实现了 Iterable 接口提供遍历 EventLoop 的能力
+  - 另有 next 方法获取集合中下一个 EventLoopdd
+
+实例：
+
+```java
+package com.test.utils.eventloop;
+
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.concurrent.TimeUnit;
+
+@Slf4j
+public class EventGroupTest {
+    public static void main(String[] args) {
+        // 1. 创建事件循环组
+        EventLoopGroup group = new NioEventLoopGroup(2); // IO 事件，普通任务，定时任务
+//        EventLoopGroup group = new DefaultEventLoop(); // 普通任务，定时任务
+        // 2. 获取下一个事件循环对象
+        System.out.println(group.next());
+        System.out.println(group.next());
+        System.out.println(group.next());
+        System.out.println(group.next());
+
+        // 3. 执行普通任务
+//        group.next().submit(() -> {
+//            try {
+//                Thread.sleep(1000);
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
+//            log.debug("OK");
+//        });
+
+        // 4. 执行定时任务
+        group.next().scheduleAtFixedRate(() -> {
+            log.debug("OK");
+        }, 0, 1, TimeUnit.SECONDS);
+
+        log.debug("main");
+    }
+}
+```
+
