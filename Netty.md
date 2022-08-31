@@ -793,3 +793,267 @@ public class EventGroupTest {
 }
 ```
 
+### 3.2 Channel
+
+channel 的主要作用
+
+- `close()` 可以用来关闭 channel
+- `closeFuture()` 用来处理 channel 的关闭
+    - `sync()` 方法作用是同步等待 channel 关闭
+    - `addListener()` 方法是异步等待 channel 关闭
+- `pipeline()` 方法添加处理器
+- `write()` 方法将数据写入 channel，但并不一定会将数据立马发出去（存在缓冲机制）
+- `writeAndFlush()` 方法将数据写入并刷出
+
+#### 3.2.1 Channel 的连接建立
+
+```java
+ChannelFuture future = ...
+    .connect(new InetSocketAddress("localhost", 8080));
+
+// 阻塞方式等待连接建立
+future.sync()
+    .channel()
+    .writeAndFlush("Hello World");
+
+// 异步等待连接建立
+future.addListener(new ChannelFutureListener() {
+    @Override
+    public void operationComplete(ChannelFuture channelFuture) throws Exception {
+        channelFuture
+            .channel()
+            .writeAndFlush("Hello World");
+    }
+});
+```
+
+#### 3.2.2 Channel 的连接关闭
+
+```java
+package com.test.utils.channel;
+
+import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.codec.string.StringEncoder;
+import lombok.extern.slf4j.Slf4j;
+
+import java.net.InetSocketAddress;
+import java.util.Scanner;
+
+/**
+ * @Author Tiechui Wang
+ * @Date 2022-08-31 14:35
+ * @description
+ */
+
+@Slf4j
+public class CloseFutureClient {
+    public static void main(String[] args) throws InterruptedException {
+        NioEventLoopGroup group = new NioEventLoopGroup();
+        ChannelFuture future = new Bootstrap()
+                .group(group)
+                .channel(NioSocketChannel.class)
+                .handler(new ChannelInitializer<NioSocketChannel>() {
+                    @Override
+                    protected void initChannel(NioSocketChannel nioSocketChannel) throws Exception {
+                        nioSocketChannel.pipeline().addLast(new StringEncoder());
+                    }
+                })
+                .connect(new InetSocketAddress("localhost", 8080));
+        
+        Channel channel = future.sync().channel();
+        new Thread(() -> {
+            Scanner scanner = new Scanner(System.in);
+            while (true) {
+                String line = scanner.nextLine();
+                if ("q".equals(line)) {
+                    channel.close(); // channel 关闭操作也是一个异步方法
+                    log.debug("错误进行处理关闭之后的操作"); // 在这里进行关闭 channel 后的操作并不可靠
+                    break;
+                }
+                channel.writeAndFlush(line);
+            }
+        }, "input").start();
+
+        /**
+         * 获取 CLoseFuture 对象
+         */
+        // 1. 同步阻塞方式来处理关闭 channel 后的操作
+        ChannelFuture closeFuture = channel.closeFuture();
+        closeFuture.sync(); // 阻塞关闭操作
+        log.debug("正确进行处理关闭之后的操作");
+        
+        // 2. 异步等待 channel 关闭连接
+        closeFuture.addListener(new ChannelFutureListener() {
+            @Override
+            public void operationComplete(ChannelFuture channelFuture) throws Exception {
+                log.debug("正确进行处理关闭之后的操作");
+                group.shutdownGracefully(); // 关闭 group
+            }
+        });
+    }
+}
+```
+
+### 3.3 Future & Promise
+
+在异步处理过程中，经常用到这两个接口
+
+Netty 中的 Future 和 JDK 中的 Future 同名，但是是两个接口，Netty 的 Future 继承自 JDK 的 Future，而 Promise 又对 Netty 的 Future 进行了扩展。
+
+- JDK Future 只能同步等待任务结束（成功/失败）才能得到结果
+- Netty Future 可以同步等待任务结束得到结果，也可以异步方式得到结果，但都要等待任务结束
+- Netty Promise 不仅有 Netty Future 的功能，而且脱离了任务独立存在，只作为两个线程之间传递结果的容器
+
+|  功能/名称  |            JDK Future             |                         Netty Future                         |   Promise    |
+| :---------: | :-------------------------------: | :----------------------------------------------------------: | :----------: |
+|   cancel    |             取消任务              |                              -                               |      -       |
+| isCanceled  |           任务是否取消            |                              -                               |      -       |
+|   isDone    | 任务是否完成（不能区分成功/失败） |                              -                               |      -       |
+|     get     |      获取任务结果，阻塞等待       |                              -                               |      -       |
+|   getNow    |                 -                 |         获取任务结果，非阻塞，未产生结果时返回 Null          |      -       |
+|    await    |                 -                 | 等待任务结束，如果任务失败，不会抛异常，而是通过 isSuccess 判断 |      -       |
+|    sync     |                 -                 |             等待任务结束，如果任务失败，抛出异常             |      -       |
+|  isSuccess  |                 -                 |                       判断任务是否成功                       |      -       |
+|    cause    |                 -                 |         获取失败信息，非阻塞，如果没有失败返回 Null          |      -       |
+| addListener |                 -                 |                    添加回调，异步接受结果                    |      -       |
+| setSuccess  |                 -                 |                              -                               | 设置成功结果 |
+| setFailure  |                 -                 |                              -                               | 设置失败结果 |
+
+### 3.4 Handler & Pipeline
+
+ChannelHandler 用来处理 Channel 上的各种事件，分为入站、出站两种。所有 ChannelHandler 被连在一起，就是 Pipeline
+
+- 入站处理器通常是 ChannelInboundHandlerAdapter 的子类，主要用来读取客户端数据，写回结果
+- 出站处理器通常是 ChannelOutboundHandlerAdapter 的子类，主要对写回结果进行加工过
+
+如果每个 Channel 是一个产品的加工车间，Pipeline 就是车间中的流水线，ChannelHandler 就是流水线上的各道工序，而 ByteBuf 则是原材料，经过很多工序的加工：先经过一道道入站工序，再经过一道道出站工序最终变成产品
+
+- InboundHandler
+
+    通过 `super.hannelRead(ChannelHandlerContext, obj)` 或 `ChannelHandlerContext.fireChannelRead(obj)` 将数据传递给下个 Handler，如果不调用，Handler 将会断开
+
+    ```java
+    new ServerBootstrap()
+        .group(new NioEventLoopGroup())
+        .channel(NioServerSocketChannel.class)
+        .childHandler(
+                new ChannelInitializer<NioSocketChannel>() {
+            @Override
+            protected void initChannel(NioSocketChannel nioSocketChannel) throws Exception {
+                // 处理器顺序 head -> handler1 -> handler2 -> ... -> tail
+                nioSocketChannel.pipeline().addLast("handler1", new ChannelInboundHandlerAdapter() {
+                    @Override
+                    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+                        super.channelRead(ctx, msg); // 向下传递
+                    }
+                });
+                nioSocketChannel.pipeline().addLast("handler2", new ChannelInboundHandlerAdapter() {
+                    @Override
+                    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+                        ctx.fireChannelRead(msg); // 向下传递
+                    }
+                });
+                ...
+            }
+        })
+        .bind(8080);
+    ```
+
+- OutboundHandler
+
+    **只有存在写出操作才会触发 OutboundHandler**
+
+    ```java
+    new ServerBootstrap()
+        .group(new NioEventLoopGroup())
+        .channel(NioServerSocketChannel.class)
+        .childHandler(
+                new ChannelInitializer<NioSocketChannel>() {
+            @Override
+            protected void initChannel(NioSocketChannel nioSocketChannel) throws Exception {
+                // 处理器顺序 head -> handler1 -> write1 -> write2 -> ... -> tail
+                nioSocketChannel.pipeline().addLast("handler1", new ChannelInboundHandlerAdapter() {
+                @Override
+                public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+                    nioSocketChannel.writeAndFlush("Hello");
+                }
+            });
+            nioSocketChannel.pipeline().addLast("write1", new ChannelOutboundHandlerAdapter(){
+                @Override
+                public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+                    super.write(ctx, msg, promise);
+                }
+            });
+            nioSocketChannel.pipeline().addLast("write2", new ChannelOutboundHandlerAdapter(){
+                @Override
+                public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+                    super.write(ctx, msg, promise);
+                }
+            });
+            }
+        })
+        .bind(8080);
+    ```
+
+    但 `OutboundHandler` 是从尾部开始向前查找 OutboundHandler，所以其执行顺序是 write2 -> write1
+
+    `ctx.writeAndFlush()` 其与 `channel.wrteAndFlush()` 的区别在于：前者会从当前位置向前查找 OutboundHandler，而后者则会从尾部 tail 向前查找 OutboundHandler
+
+![handler出入站数据处理流程](Netty.assets/handler出入站数据处理流程.png)
+
+- EmbededHandler
+
+    方便测试 Hander，无需启动服务端与客户端
+
+    ```java
+    @Slf4j
+    public class EmbededChannelTest {
+        public static void main(String[] args) {
+            ChannelInboundHandlerAdapter r1 = new ChannelInboundHandlerAdapter() {
+                @Override
+                public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+                    log.debug("r1");
+                    super.channelRead(ctx, msg);
+                }
+            };
+            
+            ChannelInboundHandlerAdapter r2 = new ChannelInboundHandlerAdapter() {
+                @Override
+                public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+                    log.debug("r2");
+                    super.channelRead(ctx, msg);
+                }
+            };
+    
+            ChannelOutboundHandlerAdapter w1 = new ChannelOutboundHandlerAdapter() {
+                @Override
+                public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+                    log.debug("w1");
+                    super.write(ctx, msg, promise);
+                }
+            };
+            
+            ChannelOutboundHandlerAdapter w2 = new ChannelOutboundHandlerAdapter() {
+                @Override
+                public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+                    log.debug("w2");
+                    super.write(ctx, msg, promise);
+                }
+            };
+    
+            EmbeddedChannel channel = new EmbeddedChannel(r1, r2, w1, w2);
+            // 模拟入站
+            channel.writeInbound(ByteBufAllocator.DEFAULT.buffer().writeBytes("hello".getBytes(StandardCharsets.UTF_8)));
+            // 模拟出站
+            channel.writeOutbound(ByteBufAllocator.DEFAULT.buffer().writeBytes("world".getBytes(StandardCharsets.UTF_8)));
+        }
+    }
+    ```
+
+    
