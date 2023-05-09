@@ -324,7 +324,7 @@ public class Client {
 
 可在打印处设置断点，debug模式下运行以保证程序不中断，以此建立一个简单的客户端程序，并按照以下方法，可以向服务端发送数据
 
-![调试程序中客户端发送数据](D:\笔记\myNotes\Netty.assets\调试程序中客户端发送数据1.png)![调试程序中客户端发送数据](D:\笔记\myNotes\Netty.assets\调试程序中客户端发送数据2.png)
+![调试程序中客户端发送数据](Netty.assets\调试程序中客户端发送数据1.png)![调试程序中客户端发送数据](Netty.assets\调试程序中客户端发送数据2.png)
 
 ### 4.1 阻塞模式
 
@@ -715,4 +715,466 @@ public class Client {
 
 ### 2.2 流程分析
 
-![客户端-服务端流程分析](D:\笔记\myNotes\Netty.assets\客户端-服务端流程分析.png)
+![客户端-服务端流程分析](Netty.assets\客户端-服务端流程分析.png)
+
+- 把 channel 理解为数据的通道
+- 把 msg 理解为流动的数据，最开始输入的是 ByteBuf，但经过 pipeline 的加工，会变成其他类型对象，最后输出又变成 ByteBuf
+- 把 handler 理解为数据的处理工序
+  - 工序有多道，合在一起就是 pipeline，pipeline 负责发布事件（读、读取完成、写等事件）传播给每个 handler，handler 对自己感兴趣的事件将进行处理（重写了相应事件处理方法）
+  - handler 分 Inbound（入站，写入） 和 Outbound（出站，写出） 两类
+- 把 enentLoop 理解为处理数据的工人
+  - 工人可以管理多个 channel 的 IO 操作，并且一旦工人负责了某个 channel，就要负责到底（绑定）
+  - 工人既可以执行 IO 操作，也可以进行任务处理，每位工人有任务队列，队列里可以堆放多个 channel 的待处理任务，任务分为普通任务、定时任务
+  - 工人按照 pipeline 顺序，依次按照 handler 的规划（代码）处理数据，可以为每道工序指定不同的工人
+
+## 3. 组件
+
+### 3.1 EventLoop
+
+事件循环对象
+
+EventLoop 本质是一个单线程执行器（同时维护了一个 Selector），里面有 run 方法处理 Channel 上源源不断的 IO 事件
+
+它的继承关系比较复杂
+
+- 一条线是继承自 `j.u.c.ScheduledExecutorService` 因此包含了线程池中所有的方法
+- 另一条线是继承自 Netty 自己的 `OrderedEventExecutor`
+  - 提供了 `boolean inEventLoop(Thread thread)` 方法判断一个线程是否属于此 EventLoop
+  - 提供了 parent 方法来看自己属于哪个 EventLoop
+
+事件循环组
+
+EventLoopGroup 是一组 EventLoop，Channel 一般会调用 EventLoopGroup 的 register 方法来绑定其中一个 EventLoop，后续这个 Channel 上的 IO 事件都由此 EventLoop 来处理（保证了 IO 事件处理时的线程安全）
+
+- 继承自 Netty 的 EventExecutorGroup
+  - 实现了 Iterable 接口提供遍历 EventLoop 的能力
+  - 另有 next 方法获取集合中下一个 EventLoopdd
+
+实例：
+
+```java
+package com.test.utils.eventloop;
+
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.concurrent.TimeUnit;
+
+@Slf4j
+public class EventGroupTest {
+    public static void main(String[] args) {
+        // 1. 创建事件循环组
+        EventLoopGroup group = new NioEventLoopGroup(2); // IO 事件，普通任务，定时任务
+//        EventLoopGroup group = new DefaultEventLoop(); // 普通任务，定时任务
+        // 2. 获取下一个事件循环对象
+        System.out.println(group.next());
+        System.out.println(group.next());
+        System.out.println(group.next());
+        System.out.println(group.next());
+
+        // 3. 执行普通任务
+//        group.next().submit(() -> {
+//            try {
+//                Thread.sleep(1000);
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
+//            log.debug("OK");
+//        });
+
+        // 4. 执行定时任务
+        group.next().scheduleAtFixedRate(() -> {
+            log.debug("OK");
+        }, 0, 1, TimeUnit.SECONDS);
+
+        log.debug("main");
+    }
+}
+```
+
+### 3.2 Channel
+
+channel 的主要作用
+
+- `close()` 可以用来关闭 channel
+- `closeFuture()` 用来处理 channel 的关闭
+    - `sync()` 方法作用是同步等待 channel 关闭
+    - `addListener()` 方法是异步等待 channel 关闭
+- `pipeline()` 方法添加处理器
+- `write()` 方法将数据写入 channel，但并不一定会将数据立马发出去（存在缓冲机制）
+- `writeAndFlush()` 方法将数据写入并刷出
+
+#### 3.2.1 Channel 的连接建立
+
+```java
+ChannelFuture future = ...
+    .connect(new InetSocketAddress("localhost", 8080));
+
+// 阻塞方式等待连接建立
+future.sync()
+    .channel()
+    .writeAndFlush("Hello World");
+
+// 异步等待连接建立
+future.addListener(new ChannelFutureListener() {
+    @Override
+    public void operationComplete(ChannelFuture channelFuture) throws Exception {
+        channelFuture
+            .channel()
+            .writeAndFlush("Hello World");
+    }
+});
+```
+
+#### 3.2.2 Channel 的连接关闭
+
+```java
+package com.test.utils.channel;
+
+import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.codec.string.StringEncoder;
+import lombok.extern.slf4j.Slf4j;
+
+import java.net.InetSocketAddress;
+import java.util.Scanner;
+
+/**
+ * @Author Tiechui Wang
+ * @Date 2022-08-31 14:35
+ * @description
+ */
+
+@Slf4j
+public class CloseFutureClient {
+    public static void main(String[] args) throws InterruptedException {
+        NioEventLoopGroup group = new NioEventLoopGroup();
+        ChannelFuture future = new Bootstrap()
+                .group(group)
+                .channel(NioSocketChannel.class)
+                .handler(new ChannelInitializer<NioSocketChannel>() {
+                    @Override
+                    protected void initChannel(NioSocketChannel nioSocketChannel) throws Exception {
+                        nioSocketChannel.pipeline().addLast(new StringEncoder());
+                    }
+                })
+                .connect(new InetSocketAddress("localhost", 8080));
+        
+        Channel channel = future.sync().channel();
+        new Thread(() -> {
+            Scanner scanner = new Scanner(System.in);
+            while (true) {
+                String line = scanner.nextLine();
+                if ("q".equals(line)) {
+                    channel.close(); // channel 关闭操作也是一个异步方法
+                    log.debug("错误进行处理关闭之后的操作"); // 在这里进行关闭 channel 后的操作并不可靠
+                    break;
+                }
+                channel.writeAndFlush(line);
+            }
+        }, "input").start();
+
+        /**
+         * 获取 CloseFuture 对象
+         */
+        // 1. 同步阻塞方式来处理关闭 channel 后的操作
+        ChannelFuture closeFuture = channel.closeFuture();
+        closeFuture.sync(); // 阻塞关闭操作
+        log.debug("正确进行处理关闭之后的操作");
+        
+        // 2. 异步等待 channel 关闭连接
+        closeFuture.addListener(new ChannelFutureListener() {
+            @Override
+            public void operationComplete(ChannelFuture channelFuture) throws Exception {
+                log.debug("正确进行处理关闭之后的操作");
+                group.shutdownGracefully(); // 关闭 group
+            }
+        });
+    }
+}
+```
+
+### 3.3 Future & Promise
+
+在异步处理过程中，经常用到这两个接口
+
+Netty 中的 Future 和 JDK 中的 Future 同名，但是是两个接口，Netty 的 Future 继承自 JDK 的 Future，而 Promise 又对 Netty 的 Future 进行了扩展。
+
+- JDK Future 只能同步等待任务结束（成功/失败）才能得到结果
+- Netty Future 可以同步等待任务结束得到结果，也可以异步方式得到结果，但都要等待任务结束
+- Netty Promise 不仅有 Netty Future 的功能，而且脱离了任务独立存在，只作为两个线程之间传递结果的容器
+
+|  功能/名称  |            JDK Future             |                         Netty Future                         |   Promise    |
+| :---------: | :-------------------------------: | :----------------------------------------------------------: | :----------: |
+|   cancel    |             取消任务              |                              -                               |      -       |
+| isCanceled  |           任务是否取消            |                              -                               |      -       |
+|   isDone    | 任务是否完成（不能区分成功/失败） |                              -                               |      -       |
+|     get     |      获取任务结果，阻塞等待       |                              -                               |      -       |
+|   getNow    |                 -                 |         获取任务结果，非阻塞，未产生结果时返回 Null          |      -       |
+|    await    |                 -                 | 等待任务结束，如果任务失败，不会抛异常，而是通过 isSuccess 判断 |      -       |
+|    sync     |                 -                 |             等待任务结束，如果任务失败，抛出异常             |      -       |
+|  isSuccess  |                 -                 |                       判断任务是否成功                       |      -       |
+|    cause    |                 -                 |         获取失败信息，非阻塞，如果没有失败返回 Null          |      -       |
+| addListener |                 -                 |                    添加回调，异步接受结果                    |      -       |
+| setSuccess  |                 -                 |                              -                               | 设置成功结果 |
+| setFailure  |                 -                 |                              -                               | 设置失败结果 |
+
+### 3.4 Handler & Pipeline
+
+ChannelHandler 用来处理 Channel 上的各种事件，分为入站、出站两种。所有 ChannelHandler 被连在一起，就是 Pipeline
+
+- 入站处理器通常是 ChannelInboundHandlerAdapter 的子类，主要用来读取客户端数据，写回结果
+- 出站处理器通常是 ChannelOutboundHandlerAdapter 的子类，主要对写回结果进行加工过
+
+如果每个 Channel 是一个产品的加工车间，Pipeline 就是车间中的流水线，ChannelHandler 就是流水线上的各道工序，而 ByteBuf 则是原材料，经过很多工序的加工：先经过一道道入站工序，再经过一道道出站工序最终变成产品
+
+- InboundHandler
+
+    通过 `super.hannelRead(ChannelHandlerContext, obj)` 或 `ChannelHandlerContext.fireChannelRead(obj)` 将数据传递给下个 Handler，如果不调用，Handler 将会断开
+
+    ```java
+    new ServerBootstrap()
+        .group(new NioEventLoopGroup())
+        .channel(NioServerSocketChannel.class)
+        .childHandler(
+                new ChannelInitializer<NioSocketChannel>() {
+            @Override
+            protected void initChannel(NioSocketChannel nioSocketChannel) throws Exception {
+                // 处理器顺序 head -> handler1 -> handler2 -> ... -> tail
+                nioSocketChannel.pipeline().addLast("handler1", new ChannelInboundHandlerAdapter() {
+                    @Override
+                    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+                        super.channelRead(ctx, msg); // 向下传递
+                    }
+                });
+                nioSocketChannel.pipeline().addLast("handler2", new ChannelInboundHandlerAdapter() {
+                    @Override
+                    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+                        ctx.fireChannelRead(msg); // 向下传递
+                    }
+                });
+                ...
+            }
+        })
+        .bind(8080);
+    ```
+
+- OutboundHandler
+
+    **只有存在写出操作才会触发 OutboundHandler**
+
+    ```java
+    new ServerBootstrap()
+        .group(new NioEventLoopGroup())
+        .channel(NioServerSocketChannel.class)
+        .childHandler(
+                new ChannelInitializer<NioSocketChannel>() {
+            @Override
+            protected void initChannel(NioSocketChannel nioSocketChannel) throws Exception {
+                // 处理器顺序 head -> handler1 -> write1 -> write2 -> ... -> tail
+                nioSocketChannel.pipeline().addLast("handler1", new ChannelInboundHandlerAdapter() {
+                @Override
+                public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+                    nioSocketChannel.writeAndFlush("Hello");
+                }
+            });
+            nioSocketChannel.pipeline().addLast("write1", new ChannelOutboundHandlerAdapter(){
+                @Override
+                public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+                    super.write(ctx, msg, promise);
+                }
+            });
+            nioSocketChannel.pipeline().addLast("write2", new ChannelOutboundHandlerAdapter(){
+                @Override
+                public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+                    super.write(ctx, msg, promise);
+                }
+            });
+            }
+        })
+        .bind(8080);
+    ```
+
+    但 `OutboundHandler` 是从尾部开始向前查找 OutboundHandler，所以其执行顺序是 write2 -> write1
+
+    `ctx.writeAndFlush()` 其与 `channel.wrteAndFlush()` 的区别在于：前者会从当前位置向前查找 OutboundHandler，而后者则会从尾部 tail 向前查找 OutboundHandler
+
+![handler出入站数据处理流程](Netty.assets/handler出入站数据处理流程.png)
+
+- EmbededHandler
+
+    方便测试 Hander，无需启动服务端与客户端
+
+    ```java
+    @Slf4j
+    public class EmbededChannelTest {
+        public static void main(String[] args) {
+            ChannelInboundHandlerAdapter r1 = new ChannelInboundHandlerAdapter() {
+                @Override
+                public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+                    log.debug("r1");
+                    super.channelRead(ctx, msg);
+                }
+            };
+            
+            ChannelInboundHandlerAdapter r2 = new ChannelInboundHandlerAdapter() {
+                @Override
+                public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+                    log.debug("r2");
+                    super.channelRead(ctx, msg);
+                }
+            };
+    
+            ChannelOutboundHandlerAdapter w1 = new ChannelOutboundHandlerAdapter() {
+                @Override
+                public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+                    log.debug("w1");
+                    super.write(ctx, msg, promise);
+                }
+            };
+            
+            ChannelOutboundHandlerAdapter w2 = new ChannelOutboundHandlerAdapter() {
+                @Override
+                public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+                    log.debug("w2");
+                    super.write(ctx, msg, promise);
+                }
+            };
+    
+            EmbeddedChannel channel = new EmbeddedChannel(r1, r2, w1, w2);
+            // 模拟入站
+            channel.writeInbound(ByteBufAllocator.DEFAULT.buffer().writeBytes("hello".getBytes(StandardCharsets.UTF_8)));
+            // 模拟出站
+            channel.writeOutbound(ByteBufAllocator.DEFAULT.buffer().writeBytes("world".getBytes(StandardCharsets.UTF_8)));
+        }
+    }
+    ```
+
+### 3.5 ByteBuf
+
+是对字节数据的封装
+
+#### 3.5.1 创建
+
+```java
+ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer(); // 默认容量256
+ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer(10); // 指定容量10
+```
+
+ByteBuf 是自己可以扩容的
+
+#### 3.5.2 直接内存、堆内存
+
+可以使用下面方法创建池化基于堆的 ByteBuf
+
+```java
+ByteBuf buffer = ByteBufAllocator.DEFAULT.heapBuffer();
+```
+
+也可以使用下面方法创建池化基于内存的 ByteBuf
+
+```java
+ByteBuf buffer = ByteBufAllocator.DEFAULT.directBuffer();
+```
+
+- 直接内存创建和销毁代价昂贵，但读写性能高（少一次内存复制），适合配合池化功能一起使用
+- 直接内存堆 GC 压力小，因为这部分内存不受 JVM 垃圾回收的管理，但也要注意及时主动释放
+
+#### 3.5.3 池化、非池化
+
+池化的最大意义在于可以重用 ByteBuf，优点：
+
+- 没有池化，则每次都得创建新的 ByteBuf 实例，这个操作对直接内存代价昂贵，就算是堆内存，也会增加 GC 压力
+- 有了池化，可以重用池中 ByteBuf 实例，并且采用了与 jemalloc 类似的内存分配算法提升分配效率
+- 高并发时，池化功能更节约内存，减少内存溢出的可能
+
+池化功能是否开启，可以通过下面的系统环境变量来设置
+
+```java
+-Dio.netty.allocator.type={unpooled|pooled}
+```
+
+- 4.1 以后，非 Android 平台默认启用池化实现，Android 平台启用非池化实现
+- 4.1 之前，池化功能还不成熟，默认是非池化实现
+
+#### 3.5.4 组成
+
+ByteBuf 由4部分组成：读指针、写指针、容量及最大容量
+
+最开始读写指针都在 0 位置
+
+![ByteBuf组成](Netty.assets/ByteBuf组成.png)
+
+#### 3.5.5 写入
+
+|                       方法名                        |         含义          |                    备注                     |
+| :-------------------------------------------------: | :-------------------: | :-----------------------------------------: |
+|            `writeBoolean(boolean value)`            |    写入 boolean 值    |  用一个字节 01 \| 00 来表示 ture \| false   |
+|               `writeByte(int value)`                |     写入 byte 值      |                                             |
+|               `writeShort(int value)`               |     写入 short 值     |                                             |
+|                `writeInt(int value)`                |      写入 int 值      |  Big Endian，即0x250，写入后为 00 00 02 50  |
+|               `writeIntLE(int value)`               |      写入 int 值      | Little Endian，即0x250，写入后为50 02 00 00 |
+|               `writeLong(long value)`               |     写入 long 值      |                                             |
+|               `writeChar(int value)`                |     写入 char 值      |                                             |
+|              `writeFloat(float value)`              |     写入 float 值     |                                             |
+|             `writeDouble(double value)`             |    写入 double 值     |                                             |
+|              `writeBytes(ByteBuf src)`              | 写入 Netty 的 ByteBuf |                                             |
+|              `writeBytes(byte[] src)`               |      写入 byte[]      |                                             |
+| `writeCharsSequence(CharSequence, Charset charset)` |      写入字符串       |                                             |
+
+> Tips:
+>
+> - 以上方法都是未指明返回值的，意味着可以链式调用
+> - 网络传输，默认习惯是 Big Endian
+
+#### 3.5.6 扩容
+
+当 ByteBuf 写入容量不够时，这时会引发扩容，扩容规则是：
+
+- 如果写入数据后大小未超过512，则选择下一个16的整数倍，如：写入后大小为12，则扩容后 capacity 是16
+- 如果写入后护具大小超过512，则选择下一个2^n，如：写入后大小为513，则扩容后 capacity 是1024
+- 扩容不能超过 MAX CAPACITY，否则会报错
+
+#### 3.5.7 读取
+
+`ByteBuf.readByte()` 方法，每次读取一个字节，读指针向前移动1，再读只能读取尚未读取的部分
+
+`ByteBuf.markReadrIndex()` 与 `ByteBuf.resetReaderIndex()` 在字节出做标记与恢复至标记点，可以实现对指定位置的重复读取
+
+#### 3.5.8 retain & release 内存回收
+
+#### 3.5.9 slice
+
+“零拷贝”的体现之一，对原始 ByteBuf 进行切片成多个 ByteBuf，切片后的 ByteBuf 并没有发生内存复制（逻辑切片），还是使用原始 ByteBuf 的内存，切片后的 ByteBuf 维护独立的 read、write 指针
+
+![slice示意图](Netty.assets/slice示意图.png)
+
+#### 3.5.10 composite
+
+将多个 ByteBuf 拼接成一个 ByteBuf，拼接的过程中同样没有内存复制（逻辑拼接）
+
+```java
+ComositByteBuf buf = ByteBufAllocator.DEFAULT.compositeBuffer();
+buf.addComponents(true, buf1, buf2);
+```
+
+ByteBuf 的优势
+
+- 池化 - 可以重用池中的 ByteBuf 实例，更节约内存，减少内存溢出的可能
+- 读写指针分离，不需要像 ByteBuf 一样切换读写模式
+- 可以自动扩容
+- 支持链式调用，使用更流畅
+- 诸多实例体现零拷贝，如：`slice()` \ `duplicate()` \ `CompoiteByteBuf()`
+
+# 三. Netty 进阶
+
+## 1. 粘包与半包
+
+### 1.1 粘包现象
+

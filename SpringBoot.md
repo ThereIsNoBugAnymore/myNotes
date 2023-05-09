@@ -1551,3 +1551,17 @@ public class SprintBootTest {
     使用快捷键`Ctrl+Shift+Alt+/`打开Registry页面
 
     勾选`compiler.automake.allow.when.app.running`
+
+# 十二. SpringBoot中常用的注解
+
+## @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+
+对象属性添加该注解后，数据将无法返回给前端
+
+## @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+
+对象属性添加该注解，将自动转化日期格式（后端给前端返回）
+
+## @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+
+对象属性添加该注解，将自动转化日期格式（前端向后端传递日期数据）
