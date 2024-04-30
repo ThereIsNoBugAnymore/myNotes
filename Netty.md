@@ -1167,7 +1167,7 @@ buf.addComponents(true, buf1, buf2);
 ByteBuf 的优势
 
 - 池化 - 可以重用池中的 ByteBuf 实例，更节约内存，减少内存溢出的可能
-- 读写指针分离，不需要像 ByteBuf 一样切换读写模式
+- 读写指针分离，不需要像 ByteBuf 一样切换读写wwwwwwwww模式
 - 可以自动扩容
 - 支持链式调用，使用更流畅
 - 诸多实例体现零拷贝，如：`slice()` \ `duplicate()` \ `CompoiteByteBuf()`
@@ -1177,3 +1177,36 @@ ByteBuf 的优势
 ## 1. 粘包与半包
 
 ### 1.1 粘包现象
+
+### 1.2 半包现象
+
+#### 1.2.1 定长解码器
+
+如果报文长度固定，可以利用定长解码器`FixedLengthFrameDecoder(frameLength)`
+
+```java
+serverBootstrap.childHandler(new ChannelInitializer<SocketChannel>() {
+    @Override
+    protected void initChannel(SocketChannel ch) throws Exception {
+        ch.pipiline().addLast(new FixedLengthFrameDecoder(10));
+    }
+})
+```
+
+#### 1.2.2 行解码器
+
+以换行符为分隔符("\n"或"\r \n")分割报文，则可以利用该解码器`LineBasedFrameDecoder(maxLength)`，使用该解码器时需要指定一个最大帧长度
+
+#### 1.2.3 自定义分隔符解码器
+
+`DelimiterBasedFrameDecoder(int maxLength, ByteBuf delimiter)`类似于行解码器，可以自定义一个分隔符来分割报文，但同样需要指定最大帧长度
+
+#### 1.2.4 LTC解码器
+
+`LengthFieldBasedFrameDecoder(int maxFrameLength, int lengthFieldOffset, int lengthFieldLength, int lengthAdjustment, int initialBytesToStrip)`
+
+- maxFrameLength: 帧最大长度
+- lengthFieldOffset: 长度字段偏移量
+- lenthFieldLength: 长度字段长度
+- lengthAdjustment: 除去长度字段为基准，还有多少字节是内容
+- initialBytesToStrip: 从头剥离几个字节
