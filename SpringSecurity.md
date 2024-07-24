@@ -47,9 +47,19 @@ Spring Security 是 Spring 家族中的一个安全管理框架，实际上，�
 
 # 二. Spring Security 基本原理
 
+## 1. 登录校验流程
+
+![登录校验流程](SpringSecurity.assets/登录校验流程.png)
+
+## 2. 完整流程
+
+Spring Security的原理其实是一个过滤器，内部包含了提供各种功能的过滤器。
+
+![过滤器链](SpringSecurity.assets/过滤器链.png)
+
 Spring Security 本质是一个过滤器链，重点有三个过滤器
 
-1. FilterSecurityInterceptor
+1. **FilterSecurityInterceptor**
 
     一个方法级的权限过滤器，基本位于过滤链的最底部
 
@@ -57,15 +67,49 @@ Spring Security 本质是一个过滤器链，重点有三个过滤器
 
     `fi.getChain().doFilter(fi.getRequest(), fi.getResponse())`表示真正的调用后台的服务
 
-2. ExceptionTranslationFilter
+2. **ExceptionTranslationFilter**
 
     一个异常过滤器，用来处理在认证授权过程中抛出的异常
 
-3. UsernamePasswordAuthenticationFilter
+3. **UsernamePasswordAuthenticationFilter**
 
     对 /login 的POST请求做拦截，校验表单中的用户名、密码
 
-## 1. UserDetailService 接口
+完整过滤器链
+
+![完整过滤器链](SpringSecurity.assets/完整过滤器链.png)
+
+## 3. 认证流程
+
+![认证流程](SpringSecurity.assets/认证流程.png)
+
+Authentication接口：它的实现类，表示当前访问系统的用户，封装了用户相关信息
+
+AuthencationManager接口：定义了认证Authentication的方法
+
+UserDetailsService接口：加载用户特定数据的核心接口，里面定义了一个根据用户名查询用户信息的方法
+
+UserDetails接口：提供核心用户信息。通过UserDetailsService根据用户名获取处理的用户信息要封装成UserDetails对象返回，然后将这些信息封装到Authentication对象中
+
+## 4. 登录思路
+
+### 4.1 登录
+
+1. 自定义登录接口
+   - 调用ProviderManager的方法进行认证，如果认证通过生成jwt
+   - 用户信息存入redis(解决方案之一，可根据实际情况调整)
+2. 自定义UserDetailsService
+   - 在这个实现列中去查询数据库
+
+### 4.2 校验
+
+1. 定义jwt认证过滤器
+   - 获取token
+   - 解析token获取其中的userid
+   - 从redis中获取用户信息
+   - 存入SecurityContextHolder
+
+## 3. UserDetailService 接口
 
 在没有配置的时候，账号和密码都是由 Spring Security 定义生成，而在实际项目中账号和密码都是从数据库中查出来的，所以要通过自定义逻辑控制认真逻辑
 
@@ -107,7 +151,7 @@ public interface UserDetailsService {
     boolean isEnabled();
     ```
 
-## 2. PasswordEncoder 接口
+## 4. PasswordEncoder 接口
 
 ```java
 // 把参数按照特定的解析规则进行解析
