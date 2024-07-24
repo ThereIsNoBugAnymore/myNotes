@@ -1551,3 +1551,85 @@ public class SprintBootTest {
     使用快捷键`Ctrl+Shift+Alt+/`打开Registry页面
 
     勾选`compiler.automake.allow.when.app.running`
+
+# 十二. SpringBoot中常用的注解
+
+## @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+
+对象属性添加该注解后，数据将无法返回给前端
+
+## @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+
+对象属性添加该注解，将自动转化日期格式（后端给前端返回）
+
+## @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+
+对象属性添加该注解，将自动转化日期格式（前端向后端传递日期数据）
+
+# 十三. 整合 Swagger2
+
+## 1. 引入依赖
+
+```xml
+<!-- https://mvnrepository.com/artifact/io.springfox/springfox-swagger2 -->
+<dependency>
+    <groupId>io.springfox</groupId>
+    <artifactId>springfox-swagger2</artifactId>
+    <version>${swagger-version}</version>
+</dependency>
+<dependency>
+    <groupId>io.springfox</groupId>
+    <artifactId>springfox-swagger-ui</artifactId>
+    <version>${swagger-version}</version>
+</dependency>
+```
+
+## 2. 添加注解，启用 Swagger2
+
+```java
+@SpringBootApplication
+@EnableSwagger2 // 添加启用 Swagger2 注解
+public class Main {
+    public static void main(String[] args) {
+        SpringApplication.run(Main.class, args);
+    }
+}
+```
+
+## 3. 添加配置类
+
+```java
+@Configuration
+public class Swagger2Config {
+    //api接口包扫描路径
+    public static final String SWAGGER_SCAN_BASE_PACKAGE = "com.sinotruk.server";
+
+    public static final String VERSION = "1.0.0";
+
+    @Bean
+    public Docket createRestApi() {
+        return new Docket(DocumentationType.SWAGGER_2)
+                .apiInfo(apiInfo())
+                .select()
+                .apis(RequestHandlerSelectors.basePackage(SWAGGER_SCAN_BASE_PACKAGE))
+                .paths(PathSelectors.any()) // 可以根据url路径设置哪些请求加入文档，忽略哪些请求
+                .build();
+    }
+
+    private ApiInfo apiInfo() {
+        return new ApiInfoBuilder()
+                .title("标题") //设置文档的标题
+                .description("描述") // 设置文档的描述
+                .version(VERSION) // 设置文档的版本信息-> 1.0.0 Version information
+//                .termsOfServiceUrl("http://www.baidu.com") // 设置文档的License信息->1.3 License information
+                .build();
+    }
+}
+```
+
+## 4. Swagger常用注解
+
+- @Api
+- @ApiOperation
+- @ApiModel
+- @ApiModelProperty

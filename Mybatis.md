@@ -97,7 +97,7 @@
                     <!-- 配置数据库的4个基本信息 -->
                     <property name="driver" value="com.mysql.cj.jdbc.Driver"/>
                     <property name="url" value="jdbc:mysql://localhost:3306/数据库"/>
-                    <property name="user" value="root"/>
+                    <property name="username" value="root"/>
                     <property name="password" value="123456"/>
                 </dataSource>
             </environment>
@@ -304,7 +304,7 @@
 
     在上述配置模板中，`INFO`控制总体输出级别
 
-    输出级别关系为：`FATAL(致命错误)`>`ERROR(错误/异常)`>`WARN(警告)`>`INFO(普通信息)`>`DEBUGZ(调试信息)`，上述配置控制输出大于设置级别的内容，如上述设置内容则输出`FATAL/ERROR/WARN/INFO`的相关日志信息
+    输出级别关系为：**FATAL(致命错误)`>`ERROR(错误/异常)`>`WARN(警告)`>`INFO(普通信息)`>`DEBUGZ(调试信息)**`，上述配置控制输出大于设置级别的内容，如上述设置内容则输出`FATAL/ERROR/WARN/INFO`的相关日志信息
 
 + `Log4j`控制输出目的地
 
@@ -803,3 +803,29 @@ WHERE
 </select>
 ```
 
+# 八、多结果集
+
+- mapper类写法
+
+    ```java
+    List<List<?>> multiResult();
+    ```
+
+- mapper映射文件
+
+    ```xml
+    -- 必须使用resultmap来映射结果集
+    <resultMap id="mapId1" type="com.example.pojo.clazz1">
+        <result column="columnName" property="clazzPropertyName" />
+    </resultMap>
+    <resultMap id="mapId2" type="com.example.pojo.clazz2">
+        <result column="columnName" property="clazzPropertyName" />
+    </resultMap>
+    
+    <!-- 多结果集，在resultMap中指定对应的map映射关系 -->
+    <select id="multiResult" resultMap="mapId1, mapId2">
+        exec SQL;
+    </select>
+    ```
+
+    

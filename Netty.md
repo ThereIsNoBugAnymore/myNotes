@@ -881,7 +881,7 @@ public class CloseFutureClient {
         }, "input").start();
 
         /**
-         * 获取 CLoseFuture 对象
+         * 获取 CloseFuture 对象
          */
         // 1. 同步阻塞方式来处理关闭 channel 后的操作
         ChannelFuture closeFuture = channel.closeFuture();
@@ -1056,4 +1056,157 @@ ChannelHandler 用来处理 Channel 上的各种事件，分为入站、出站�
     }
     ```
 
-    
+### 3.5 ByteBuf
+
+是对字节数据的封装
+
+#### 3.5.1 创建
+
+```java
+ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer(); // 默认容量256
+ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer(10); // 指定容量10
+```
+
+ByteBuf 是自己可以扩容的
+
+#### 3.5.2 直接内存、堆内存
+
+可以使用下面方法创建池化基于堆的 ByteBuf
+
+```java
+ByteBuf buffer = ByteBufAllocator.DEFAULT.heapBuffer();
+```
+
+也可以使用下面方法创建池化基于内存的 ByteBuf
+
+```java
+ByteBuf buffer = ByteBufAllocator.DEFAULT.directBuffer();
+```
+
+- 直接内存创建和销毁代价昂贵，但读写性能高（少一次内存复制），适合配合池化功能一起使用
+- 直接内存堆 GC 压力小，因为这部分内存不受 JVM 垃圾回收的管理，但也要注意及时主动释放
+
+#### 3.5.3 池化、非池化
+
+池化的最大意义在于可以重用 ByteBuf，优点：
+
+- 没有池化，则每次都得创建新的 ByteBuf 实例，这个操作对直接内存代价昂贵，就算是堆内存，也会增加 GC 压力
+- 有了池化，可以重用池中 ByteBuf 实例，并且采用了与 jemalloc 类似的内存分配算法提升分配效率
+- 高并发时，池化功能更节约内存，减少内存溢出的可能
+
+池化功能是否开启，可以通过下面的系统环境变量来设置
+
+```java
+-Dio.netty.allocator.type={unpooled|pooled}
+```
+
+- 4.1 以后，非 Android 平台默认启用池化实现，Android 平台启用非池化实现
+- 4.1 之前，池化功能还不成熟，默认是非池化实现
+
+#### 3.5.4 组成
+
+ByteBuf 由4部分组成：读指针、写指针、容量及最大容量
+
+最开始读写指针都在 0 位置
+
+![ByteBuf组成](Netty.assets/ByteBuf组成.png)
+
+#### 3.5.5 写入
+
+|                       方法名                        |         含义          |                    备注                     |
+| :-------------------------------------------------: | :-------------------: | :-----------------------------------------: |
+|            `writeBoolean(boolean value)`            |    写入 boolean 值    |  用一个字节 01 \| 00 来表示 ture \| false   |
+|               `writeByte(int value)`                |     写入 byte 值      |                                             |
+|               `writeShort(int value)`               |     写入 short 值     |                                             |
+|                `writeInt(int value)`                |      写入 int 值      |  Big Endian，即0x250，写入后为 00 00 02 50  |
+|               `writeIntLE(int value)`               |      写入 int 值      | Little Endian，即0x250，写入后为50 02 00 00 |
+|               `writeLong(long value)`               |     写入 long 值      |                                             |
+|               `writeChar(int value)`                |     写入 char 值      |                                             |
+|              `writeFloat(float value)`              |     写入 float 值     |                                             |
+|             `writeDouble(double value)`             |    写入 double 值     |                                             |
+|              `writeBytes(ByteBuf src)`              | 写入 Netty 的 ByteBuf |                                             |
+|              `writeBytes(byte[] src)`               |      写入 byte[]      |                                             |
+| `writeCharsSequence(CharSequence, Charset charset)` |      写入字符串       |                                             |
+
+> Tips:
+>
+> - 以上方法都是未指明返回值的，意味着可以链式调用
+> - 网络传输，默认习惯是 Big Endian
+
+#### 3.5.6 扩容
+
+当 ByteBuf 写入容量不够时，这时会引发扩容，扩容规则是：
+
+- 如果写入数据后大小未超过512，则选择下一个16的整数倍，如：写入后大小为12，则扩容后 capacity 是16
+- 如果写入后护具大小超过512，则选择下一个2^n，如：写入后大小为513，则扩容后 capacity 是1024
+- 扩容不能超过 MAX CAPACITY，否则会报错
+
+#### 3.5.7 读取
+
+`ByteBuf.readByte()` 方法，每次读取一个字节，读指针向前移动1，再读只能读取尚未读取的部分
+
+`ByteBuf.markReadrIndex()` 与 `ByteBuf.resetReaderIndex()` 在字节出做标记与恢复至标记点，可以实现对指定位置的重复读取
+
+#### 3.5.8 retain & release 内存回收
+
+#### 3.5.9 slice
+
+“零拷贝”的体现之一，对原始 ByteBuf 进行切片成多个 ByteBuf，切片后的 ByteBuf 并没有发生内存复制（逻辑切片），还是使用原始 ByteBuf 的内存，切片后的 ByteBuf 维护独立的 read、write 指针
+
+![slice示意图](Netty.assets/slice示意图.png)
+
+#### 3.5.10 composite
+
+将多个 ByteBuf 拼接成一个 ByteBuf，拼接的过程中同样没有内存复制（逻辑拼接）
+
+```java
+ComositByteBuf buf = ByteBufAllocator.DEFAULT.compositeBuffer();
+buf.addComponents(true, buf1, buf2);
+```
+
+ByteBuf 的优势
+
+- 池化 - 可以重用池中的 ByteBuf 实例，更节约内存，减少内存溢出的可能
+- 读写指针分离，不需要像 ByteBuf 一样切换读写wwwwwwwww模式
+- 可以自动扩容
+- 支持链式调用，使用更流畅
+- 诸多实例体现零拷贝，如：`slice()` \ `duplicate()` \ `CompoiteByteBuf()`
+
+# 三. Netty 进阶
+
+## 1. 粘包与半包
+
+### 1.1 粘包现象
+
+### 1.2 半包现象
+
+#### 1.2.1 定长解码器
+
+如果报文长度固定，可以利用定长解码器`FixedLengthFrameDecoder(frameLength)`
+
+```java
+serverBootstrap.childHandler(new ChannelInitializer<SocketChannel>() {
+    @Override
+    protected void initChannel(SocketChannel ch) throws Exception {
+        ch.pipiline().addLast(new FixedLengthFrameDecoder(10));
+    }
+})
+```
+
+#### 1.2.2 行解码器
+
+以换行符为分隔符("\n"或"\r \n")分割报文，则可以利用该解码器`LineBasedFrameDecoder(maxLength)`，使用该解码器时需要指定一个最大帧长度
+
+#### 1.2.3 自定义分隔符解码器
+
+`DelimiterBasedFrameDecoder(int maxLength, ByteBuf delimiter)`类似于行解码器，可以自定义一个分隔符来分割报文，但同样需要指定最大帧长度
+
+#### 1.2.4 LTC解码器
+
+`LengthFieldBasedFrameDecoder(int maxFrameLength, int lengthFieldOffset, int lengthFieldLength, int lengthAdjustment, int initialBytesToStrip)`
+
+- maxFrameLength: 帧最大长度
+- lengthFieldOffset: 长度字段偏移量
+- lenthFieldLength: 长度字段长度
+- lengthAdjustment: 除去长度字段为基准，还有多少字节是内容
+- initialBytesToStrip: 从头剥离几个字节
